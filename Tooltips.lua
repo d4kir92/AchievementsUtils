@@ -1,9 +1,12 @@
 local _, AchievementsUtils = ...
 local MAX_PARENT_DEPTH = 8
 local CTRL_TIMEOUT = 10
+local TRACKER_DELAY = 0.5
 local adding = false
+local installed = false
 local lastCtrlID = nil
 local lastCtrlTime = 0
+local trackerPending = false
 
 local function IsInAchievementFrame(frame)
     if type(AchievementFrame) ~= "table" then return false end
@@ -236,19 +239,164 @@ local function OnTooltipHide(tooltip)
     tooltip.auAchievement = nil
 end
 
+local function ShowOwnTooltip(owner, id)
+    if adding then return end
+    if type(owner) ~= "table" or type(id) ~= "number" then return end
+    if not AchievementsUtils:IsEnabled("ACHTOOLTIP") then return end
+    local ach = AchievementsUtils:GetAchievement(id)
+    if ach == nil then return end
+    adding = true
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:SetText(AchievementsUtils:ColorByStatus(ach.name, ach.completed), 1, 1, 1)
+    if ach.description and ach.description ~= "" then GameTooltip:AddLine(ach.description, 1, 1, 1, true) end
+    local lines = BuildLines(id)
+    if #lines > 0 then
+        GameTooltip:AddLine(" ")
+        for _, line in ipairs(lines) do
+            if line.right then
+                GameTooltip:AddDoubleLine(line.left, line.right, line.r, line.g, line.b, line.r2, line.g2, line.b2)
+            else
+                GameTooltip:AddLine(line.left, line.r, line.g, line.b, true)
+            end
+        end
+    end
+
+    GameTooltip.auAchievement = id
+    GameTooltip:Show()
+    adding = false
+end
+
+local function HideOwnTooltip()
+    if GameTooltip.auAchievement == nil then return end
+    GameTooltip.auAchievement = nil
+    GameTooltip:Hide()
+end
+
+local function InstallTooltipHooks()
+    if installed then return end
+    installed = true
+    if EventRegistry and EventRegistry.RegisterCallback then
+        EventRegistry:RegisterCallback(
+            "AchievementFrameAchievement.OnEnter",
+            function(_, button, id)
+                if type(id) ~= "number" and type(button) == "table" then id = button.id end
+                ShowOwnTooltip(button, id)
+            end,
+            "AchievementsUtils"
+        )
+
+        EventRegistry:RegisterCallback("AchievementFrameAchievement.OnLeave", function() HideOwnTooltip() end, "AchievementsUtils")
+
+        return
+    end
+
+    if type(_G["AchievementButton_OnEnter"]) == "function" then
+        hooksecurefunc(
+            "AchievementButton_OnEnter",
+            function(sel)
+                if type(sel) ~= "table" then return end
+                ShowOwnTooltip(sel, sel.id)
+            end
+        )
+    end
+
+    if type(_G["AchievementButton_OnLeave"]) == "function" then hooksecurefunc("AchievementButton_OnLeave", function() HideOwnTooltip() end) end
+end
+
 GameTooltip:HookScript("OnShow", OnTooltipShow)
 GameTooltip:HookScript("OnHide", OnTooltipHide)
-if type(_G["AchievementButton_OnEnter"]) == "function" then
-    hooksecurefunc(
-        "AchievementButton_OnEnter",
+AchievementsUtils:OnAchievementUIReady(InstallTooltipHooks)
+
+local function GetTrackerBlockID(block)
+    if type(block) ~= "table" then return nil end
+    local id = block.id
+    if type(id) ~= "number" then id = block.achievementID end
+    if type(id) ~= "number" then return nil end
+
+    return id
+end
+
+local function HookTrackerBlock(block)
+    if type(block) ~= "table" then return end
+    local target = block.HeaderButton
+    if type(target) ~= "table" then target = block end
+    if target.auTrackerHooked then return end
+    if target.HookScript == nil then return end
+    target.auTrackerHooked = true
+    target:HookScript(
+        "OnEnter",
         function(sel)
-            if type(sel) ~= "table" then return end
-            local id = sel.id
-            if type(id) ~= "number" then return end
-            Decorate(GameTooltip, id)
+            if not AchievementsUtils:IsEnabled("TTTRACKER") then return end
+            ShowOwnTooltip(sel, GetTrackerBlockID(block))
+        end
+    )
+
+    target:HookScript(
+        "OnLeave",
+        function()
+            if not AchievementsUtils:IsEnabled("TTTRACKER") then return end
+            HideOwnTooltip()
         end
     )
 end
+
+local function HookTrackerModule(module)
+    if module.auTrackerModuleHooked then return end
+    if type(module.GetBlock) ~= "function" then return end
+    if type(module.GetExistingBlock) ~= "function" then return end
+    module.auTrackerModuleHooked = true
+    hooksecurefunc(
+        module,
+        "GetBlock",
+        function(sel, id, optTemplate)
+            HookTrackerBlock(sel:GetExistingBlock(id, optTemplate))
+        end
+    )
+end
+
+local function ScanTrackerModule(module)
+    if type(module) ~= "table" then return end
+    HookTrackerModule(module)
+    local used = module.usedBlocks
+    if type(used) ~= "table" then return end
+    for _, value in pairs(used) do
+        if type(value) == "table" then
+            if type(value.id) == "number" then
+                HookTrackerBlock(value)
+            else
+                for _, block in pairs(value) do
+                    if type(block) == "table" and type(block.id) == "number" then HookTrackerBlock(block) end
+                end
+            end
+        end
+    end
+end
+
+local function ScanTracker()
+    trackerPending = false
+    if not AchievementsUtils:IsEnabled("TTTRACKER") then return end
+    ScanTrackerModule(_G["AchievementObjectiveTracker"])
+    ScanTrackerModule(_G["ACHIEVEMENT_TRACKER_MODULE"])
+end
+
+local function QueueTrackerScan()
+    if trackerPending then return end
+    if not AchievementsUtils:IsEnabled("TTTRACKER") then return end
+    trackerPending = true
+    C_Timer.After(TRACKER_DELAY, ScanTracker)
+end
+
+AchievementsUtils:AddEvent("PLAYER_ENTERING_WORLD", QueueTrackerScan)
+AchievementsUtils:AddEvent("TRACKED_ACHIEVEMENT_LIST_CHANGED", QueueTrackerScan)
+AchievementsUtils:AddEvent("TRACKED_ACHIEVEMENT_UPDATE", QueueTrackerScan)
+AchievementsUtils:AddEvent("CONTENT_TRACKING_UPDATE", QueueTrackerScan)
+AchievementsUtils:OnOptionChanged(
+    "TTTRACKER",
+    function(value)
+        if value ~= true then return end
+        QueueTrackerScan()
+    end
+)
 
 local function GetLinkedCriteria(fields, criteriaIndex)
     if bit == nil then return nil end
@@ -299,13 +447,25 @@ local function CompareLink(id, parts)
     AchievementsUtils:MSG(AchievementsUtils:Trans("LID_COMPAREYOU"), myText)
 end
 
-local function OnItemRef(link)
+local function OnItemRef(link, _, button)
     if type(link) ~= "string" then return end
     if not AchievementsUtils:IsEnabled("LINKS") then return end
     local parts = {strsplit(":", link)}
     if parts[1] ~= "achievement" then return end
     local id = tonumber(parts[2])
     if id == nil then return end
+    if AchievementsUtils:IsEnabled("WOWHEAD") and IsAltKeyDown() then
+        AchievementsUtils:ShowWowheadLink(id)
+
+        return
+    end
+
+    if button == "MiddleButton" then
+        AchievementsUtils:OpenToAchievement(id)
+
+        return
+    end
+
     if AchievementsUtils:IsEnabled("LINKTRACK") and IsControlKeyDown() then
         local now = GetTime()
         if lastCtrlID == id and (now - lastCtrlTime) < CTRL_TIMEOUT then
@@ -334,4 +494,11 @@ local function OnItemRef(link)
     end
 end
 
-if type(SetItemRef) == "function" then hooksecurefunc("SetItemRef", function(link) OnItemRef(link) end) end
+if type(SetItemRef) == "function" then
+    hooksecurefunc(
+        "SetItemRef",
+        function(link, text, button)
+            OnItemRef(link, text, button)
+        end
+    )
+end

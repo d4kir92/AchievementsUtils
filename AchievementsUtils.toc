@@ -55,6 +55,7 @@ Core.lua
 Index.lua
 Tooltips.lua
 Frame.lua
+History.lua
 Tabs.lua
 Reminders.lua
 AutoTrack.lua

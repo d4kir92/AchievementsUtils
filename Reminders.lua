@@ -76,15 +76,33 @@ local function Finish(tooltip, changed)
     if changed then tooltip:Show() end
 end
 
+local function GetTooltipName()
+    local line = _G["GameTooltipTextLeft1"]
+    if line == nil then return nil end
+    local name = line:GetText()
+    if name == nil or name == "" then return nil end
+    if AchievementsUtils:IsSecret(name) then return nil end
+
+    return name
+end
+
 local function HandleUnit(tooltip, unit)
     if not AchievementsUtils:IsEnabled("REMINDERUNITS") then return end
-    if unit == nil or not UnitExists(unit) then return end
-    local name = UnitName(unit)
+    if unit == nil then return end
+    local secret = AchievementsUtils:IsSecret(unit)
+    local name = nil
+    if secret then
+        name = GetTooltipName()
+    elseif UnitExists(unit) then
+        name = UnitName(unit)
+    end
+
+    if name == nil or name == "" then return end
     if AchievementsUtils:IsSecret(name) then return end
     if tooltip.auReminder == name then return end
     tooltip.auReminder = name
     local changed = AddLines(tooltip, name)
-    if AchievementsUtils:IsEnabled("REMINDERCLASSES") and UnitIsPlayer(unit) then
+    if not secret and AchievementsUtils:IsEnabled("REMINDERCLASSES") and UnitIsPlayer(unit) then
         local className = UnitClass(unit)
         if not AchievementsUtils:IsSecret(className) and AddLines(tooltip, className) then changed = true end
     end

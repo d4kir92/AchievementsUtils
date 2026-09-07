@@ -4,6 +4,8 @@ local HEADER_HEIGHT = 30
 local FOOTER_HEIGHT = 18
 local MAX_ROWS = 40
 local STRATA_ORDER = {"BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG"}
+local COLLAPSED_ICON = "Interface\\Buttons\\UI-PlusButton-Up"
+local EXPANDED_ICON = "Interface\\Buttons\\UI-MinusButton-Up"
 local tabDefs = {
     {
         ["key"] = "TABSEARCH",
@@ -24,15 +26,18 @@ local tabDefs = {
 }
 
 local panel = nil
+local blizzardHooked = false
 local searchBox = nil
 local statusText = nil
 local tabs = {}
 local rows = {}
 local items = {}
+local visibleItems = {}
 local activeTab = nil
 local offset = 0
 local selectedAchievement = nil
 local searchPending = false
+local restored = false
 
 local function CountVisibleRows()
     if panel == nil then return 0 end
@@ -58,14 +63,84 @@ local function AddItem(id, seen)
     )
 end
 
-local function AddHeader(text)
+local function IsCollapsed(key)
+    if key == nil then return false end
+    local db = AchievementsUtils:GetDB()
+    if type(db["TABCOLLAPSED"]) ~= "table" then return false end
+
+    return db["TABCOLLAPSED"][key] == true
+end
+
+local function SetCollapsed(key, collapsed)
+    if key == nil then return end
+    local db = AchievementsUtils:GetDB()
+    if type(db["TABCOLLAPSED"]) ~= "table" then db["TABCOLLAPSED"] = {} end
+    if collapsed then
+        db["TABCOLLAPSED"][key] = true
+    else
+        db["TABCOLLAPSED"][key] = nil
+    end
+end
+
+local function ApplyCollapse()
+    wipe(visibleItems)
+    local hiddenLevel = nil
+    for _, item in ipairs(items) do
+        if item.header then
+            local level = item.level or 1
+            if hiddenLevel == nil or level <= hiddenLevel then
+                hiddenLevel = nil
+                tinsert(visibleItems, item)
+                if IsCollapsed(item.key) then hiddenLevel = level end
+            end
+        elseif hiddenLevel == nil then
+            tinsert(visibleItems, item)
+        end
+    end
+end
+
+local function AddHeader(text, key, level)
     if text == nil or text == "" then return end
     tinsert(
         items,
         {
-            ["header"] = text
+            ["header"] = text,
+            ["key"] = key,
+            ["level"] = level or 1
         }
     )
+end
+
+local function AddGroup(list, seen, keyPrefix)
+    local singles = {}
+    local metas = {}
+    for _, entry in ipairs(list) do
+        if not seen[entry.id] then
+            if entry.isMeta then
+                tinsert(metas, entry)
+            else
+                tinsert(singles, entry)
+            end
+        end
+    end
+
+    if #singles > 0 and #metas > 0 then
+        AddHeader(AchievementsUtils:Trans("LID_SINGLEACHIEVEMENTS"), keyPrefix .. ":SINGLE", 2)
+        for _, entry in ipairs(singles) do
+            AddItem(entry.id, seen)
+        end
+
+        AddHeader(AchievementsUtils:Trans("LID_METAACHIEVEMENTS"), keyPrefix .. ":META", 2)
+        for _, entry in ipairs(metas) do
+            AddItem(entry.id, seen)
+        end
+
+        return
+    end
+
+    for _, entry in ipairs(list) do
+        AddItem(entry.id, seen)
+    end
 end
 
 local function AddInfo(text)
@@ -128,10 +203,8 @@ local function BuildSuggestions()
     if zone and zone ~= "" then
         local list = AchievementsUtils:FindZoneAchievements(zone, 30)
         if #list > 0 then
-            AddHeader(AchievementsUtils:Trans("LID_CURRENTZONE", nil, zone))
-            for _, entry in ipairs(list) do
-                AddItem(entry.id, seen)
-            end
+            AddHeader(AchievementsUtils:Trans("LID_CURRENTZONE", nil, zone), "ZONE")
+            AddGroup(list, seen, "ZONE")
         end
     end
 
@@ -139,10 +212,8 @@ local function BuildSuggestions()
     if sub and sub ~= "" and sub ~= zone then
         local list = AchievementsUtils:FindZoneAchievements(sub, 20)
         if #list > 0 then
-            AddHeader(AchievementsUtils:Trans("LID_CURRENTZONE", nil, sub))
-            for _, entry in ipairs(list) do
-                AddItem(entry.id, seen)
-            end
+            AddHeader(AchievementsUtils:Trans("LID_CURRENTZONE", nil, sub), "SUBZONE")
+            AddGroup(list, seen, "SUBZONE")
         end
     end
 
@@ -151,20 +222,16 @@ local function BuildSuggestions()
         if categoryID then
             local list = AchievementsUtils:FindCategoryAchievements(categoryID, true, 30)
             if #list > 0 then
-                AddHeader(AchievementsUtils:Trans("LID_HOLIDAY", nil, title))
-                for _, entry in ipairs(list) do
-                    AddItem(entry.id, seen)
-                end
+                AddHeader(AchievementsUtils:Trans("LID_HOLIDAY", nil, title), "HOLIDAY:" .. title)
+                AddGroup(list, seen, "HOLIDAY:" .. title)
             end
         end
     end
 
     local progress = AchievementsUtils:FindInProgress(20)
     if #progress > 0 then
-        AddHeader(AchievementsUtils:Trans("LID_INPROGRESS"))
-        for _, entry in ipairs(progress) do
-            AddItem(entry.id, seen)
-        end
+        AddHeader(AchievementsUtils:Trans("LID_INPROGRESS"), "INPROGRESS")
+        AddGroup(progress, seen, "INPROGRESS")
     end
 
     if #items <= 0 then AddInfo(AchievementsUtils:Trans("LID_NOSUGGESTIONS")) end
@@ -199,7 +266,7 @@ local function BuildRelated()
     AddHeader(ach.name)
     local before, after = AchievementsUtils:GetSeries(id)
     if #before > 0 or #after > 0 then
-        AddHeader(AchievementsUtils:Trans("LID_PARTOFSERIES"))
+        AddHeader(AchievementsUtils:Trans("LID_PARTOFSERIES"), "SERIES")
         for _, value in ipairs(before) do
             AddItem(value, seen)
         end
@@ -212,7 +279,7 @@ local function BuildRelated()
 
     local requiredBy = AchievementsUtils:GetRequiredBy(id)
     if requiredBy and #requiredBy > 0 then
-        AddHeader(AchievementsUtils:Trans("LID_REQUIREDBY"))
+        AddHeader(AchievementsUtils:Trans("LID_REQUIREDBY"), "REQUIREDBY")
         for _, value in ipairs(requiredBy) do
             AddItem(value, seen)
         end
@@ -225,7 +292,7 @@ local function BuildRelated()
         local _, criteriaType, _, _, _, _, _, assetID = GetAchievementCriteriaInfo(id, i)
         if criteriaType == metaType and type(assetID) == "number" and assetID > 0 then
             if not metaAdded then
-                AddHeader(AchievementsUtils:Trans("LID_CONSISTSOF"))
+                AddHeader(AchievementsUtils:Trans("LID_CONSISTSOF"), "CONSISTSOF")
                 metaAdded = true
             end
 
@@ -251,7 +318,7 @@ end
 local function UpdateRows()
     if panel == nil then return end
     local visible = CountVisibleRows()
-    local maxOffset = #items - visible
+    local maxOffset = #visibleItems - visible
     if maxOffset < 0 then maxOffset = 0 end
     if offset > maxOffset then offset = maxOffset end
     if offset < 0 then offset = 0 end
@@ -263,17 +330,45 @@ local function UpdateRows()
     for i = 1, visible do
         local row = rows[i]
         if row == nil then break end
-        local item = items[i + offset]
+        local item = visibleItems[i + offset]
         if item == nil then
             row:Hide()
         else
             row:Show()
             row.id = nil
+            row.headerKey = nil
             row.icon:Hide()
+            row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            row.icon:SetSize(20, 20)
+            row.icon:ClearAllPoints()
+            row.icon:SetPoint("LEFT", row, "LEFT", 2, 0)
             row.right:SetText("")
+            row.name:SetFontObject("GameFontNormal")
             if item.header then
+                local level = item.level or 1
+                if level > 1 then
+                    row.icon:ClearAllPoints()
+                    row.icon:SetPoint("LEFT", row, "LEFT", 16, 0)
+                else
+                    row.name:SetFontObject("GameFontNormalLarge")
+                end
+
                 row.name:SetText("|cffffd200" .. item.header .. "|r")
-                row:EnableMouse(false)
+                if item.key then
+                    row.headerKey = item.key
+                    row:EnableMouse(true)
+                    row.icon:SetTexCoord(0, 1, 0, 1)
+                    row.icon:SetSize(16, 16)
+                    if IsCollapsed(item.key) then
+                        row.icon:SetTexture(COLLAPSED_ICON)
+                    else
+                        row.icon:SetTexture(EXPANDED_ICON)
+                    end
+
+                    row.icon:Show()
+                else
+                    row:EnableMouse(false)
+                end
             elseif item.info then
                 row.name:SetText("|cff999999" .. item.info .. "|r")
                 row:EnableMouse(false)
@@ -322,14 +417,29 @@ local function Refresh()
         BuildRelated()
     end
 
+    ApplyCollapse()
     UpdateRows()
 end
 
 local function RowOnClick(sel, button)
+    if sel.headerKey then
+        SetCollapsed(sel.headerKey, not IsCollapsed(sel.headerKey))
+        ApplyCollapse()
+        UpdateRows()
+
+        return
+    end
+
     if sel.id == nil then return end
     if button == "RightButton" then
         AchievementsUtils:ToggleWatch(sel.id)
         Refresh()
+
+        return
+    end
+
+    if AchievementsUtils:IsEnabled("WOWHEAD") and IsAltKeyDown() then
+        AchievementsUtils:ShowWowheadLink(sel.id)
 
         return
     end
@@ -356,6 +466,7 @@ local function RowOnEnter(sel)
     GameTooltip:AddLine(AchievementsUtils:Trans("LID_CLICKOPEN"), 0.6, 0.6, 0.6)
     GameTooltip:AddLine(AchievementsUtils:Trans("LID_CTRLCLICKTRACK"), 0.6, 0.6, 0.6)
     GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKWATCH"), 0.6, 0.6, 0.6)
+    if AchievementsUtils:IsEnabled("WOWHEAD") then GameTooltip:AddLine(AchievementsUtils:Trans("LID_ALTCLICKWOWHEAD"), 0.6, 0.6, 0.6) end
     GameTooltip:Show()
 end
 
@@ -503,7 +614,7 @@ local function UpdateTabVisuals()
                 tab.bg:SetVertexColor(0.1, 0.1, 0.12, 1)
                 tab.text:SetTextColor(0.7, 0.7, 0.7)
             end
-        elseif tab.Left and type(PanelTemplates_SelectTab) == "function" and type(PanelTemplates_DeselectTab) == "function" then
+        elseif tab.LeftActive and type(PanelTemplates_SelectTab) == "function" and type(PanelTemplates_DeselectTab) == "function" then
             if selected then
                 PanelTemplates_SelectTab(tab)
             else
@@ -513,11 +624,52 @@ local function UpdateTabVisuals()
     end
 end
 
+local function DeselectBlizzardTabs()
+    if type(PanelTemplates_DeselectTab) ~= "function" then return end
+    for i = 1, 10 do
+        local tab = _G["AchievementFrameTab" .. i]
+        if tab == nil then break end
+        if tab.LeftActive then PanelTemplates_DeselectTab(tab) end
+    end
+end
+
+local function RestoreBlizzardTabs()
+    if type(AchievementFrame) ~= "table" then return end
+    if type(PanelTemplates_UpdateTabs) ~= "function" then return end
+    if AchievementFrame.numTabs == nil or AchievementFrame.selectedTab == nil then return end
+    PanelTemplates_UpdateTabs(AchievementFrame)
+end
+
+local function SaveState()
+    if not AchievementsUtils:IsEnabled("RESTORESTATE") then return end
+    AchievementsUtils:SV(
+        AchievementsUtils:GetCharDB(),
+        "LASTSTATE",
+        {
+            ["tab"] = activeTab,
+            ["achievement"] = selectedAchievement
+        }
+    )
+end
+
+local function RestoreState()
+    if restored then return end
+    restored = true
+    if not AchievementsUtils:IsEnabled("RESTORESTATE") then return end
+    if activeTab ~= nil then return end
+    local state = AchievementsUtils:GV(AchievementsUtils:GetCharDB(), "LASTSTATE", nil)
+    if type(state) ~= "table" then return end
+    if type(state.achievement) == "number" and type(AchievementFrame_SelectAchievement) == "function" then AchievementFrame_SelectAchievement(state.achievement) end
+    if type(state.tab) == "string" and AchievementsUtils:IsEnabled(state.tab) then AchievementsUtils:ShowExtraTab(state.tab) end
+end
+
 function AchievementsUtils:HideExtraTab()
     if activeTab == nil then return end
     activeTab = nil
     if panel then panel:Hide() end
     UpdateTabVisuals()
+    RestoreBlizzardTabs()
+    SaveState()
 end
 
 function AchievementsUtils:ShowExtraTab(key)
@@ -535,8 +687,10 @@ function AchievementsUtils:ShowExtraTab(key)
     end
 
     UpdateTabVisuals()
+    DeselectBlizzardTabs()
     AchievementsUtils:BuildIndex()
     Refresh()
+    SaveState()
 end
 
 local function CreateTab(def, index)
@@ -568,6 +722,12 @@ local function CreateTab(def, index)
         tab.text:SetText(label)
     else
         tab:SetText(label)
+        if tab.LeftActive then
+            tab.deselectedTextY = -3
+            tab.selectedTextY = -5
+            if type(PanelTemplates_DeselectTab) == "function" then PanelTemplates_DeselectTab(tab) end
+        end
+
         if type(PanelTemplates_TabResize) == "function" and tab.Left then
             PanelTemplates_TabResize(tab, 30)
         elseif tab.GetTextWidth then
@@ -630,9 +790,20 @@ local function LayoutTabs()
     end
 end
 
+local function HookBlizzardTabs()
+    if blizzardHooked then return end
+    blizzardHooked = true
+    for i = 1, 10 do
+        local tab = _G["AchievementFrameTab" .. i]
+        if tab == nil then break end
+        tab:HookScript("OnClick", function() AchievementsUtils:HideExtraTab() end)
+    end
+end
+
 local function InstallTabs()
     if not AchievementsUtils:IsEnabled("TABS") then return end
     if type(AchievementFrame) ~= "table" then return end
+    HookBlizzardTabs()
     if #tabs <= 0 then
         for i, def in ipairs(tabDefs) do
             tabs[i] = CreateTab(def, i)
@@ -659,15 +830,61 @@ function AchievementsUtils:RefreshExtraTab()
     Refresh()
 end
 
+local function HookAchievementButton(button)
+    if type(button) ~= "table" then return end
+    if button.auTabsHooked then return end
+    if button.HookScript == nil then return end
+    button.auTabsHooked = true
+    button:HookScript(
+        "OnClick",
+        function(sel)
+            if type(sel.id) ~= "number" then return end
+            selectedAchievement = sel.id
+            SaveState()
+            if activeTab == "TABRELATED" then Refresh() end
+        end
+    )
+end
+
+local function InstallSelectionHooks()
+    if EventRegistry and EventRegistry.RegisterCallback then
+        EventRegistry:RegisterCallback(
+            "AchievementFrameAchievement.OnEnter",
+            function(_, button)
+                HookAchievementButton(button)
+            end,
+            "AchievementsUtilsTabs"
+        )
+
+        return
+    end
+
+    if type(_G["AchievementButton_OnEnter"]) == "function" then hooksecurefunc("AchievementButton_OnEnter", HookAchievementButton) end
+end
+
 AchievementsUtils:OnAchievementUIReady(
     function()
         InstallTabs()
+        InstallSelectionHooks()
         if type(AchievementFrame_SelectAchievement) == "function" then
             hooksecurefunc(
                 "AchievementFrame_SelectAchievement",
                 function(id)
-                    if type(id) == "number" then selectedAchievement = id end
+                    if type(id) == "number" then
+                        selectedAchievement = id
+                        SaveState()
+                    end
+
                     if activeTab == "TABRELATED" then Refresh() end
+                end
+            )
+        end
+
+        if type(AchievementFrame) == "table" then
+            AchievementFrame:HookScript(
+                "OnShow",
+                function()
+                    C_Timer.After(0, RestoreState)
                 end
             )
         end

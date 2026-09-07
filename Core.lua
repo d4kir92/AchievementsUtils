@@ -2,6 +2,18 @@ local _, AchievementsUtils = ...
 local ADDON = "AchievementsUtils"
 local ICON = 236373
 local META_CRITERIA_TYPE = 8
+local WOWHEAD_POPUP = "ACHIEVEMENTSUTILS_WOWHEAD"
+local WOWHEAD_LOCALES = {
+    ["deDE"] = "de",
+    ["esES"] = "es",
+    ["esMX"] = "es",
+    ["frFR"] = "fr",
+    ["itIT"] = "it",
+    ["ptBR"] = "pt",
+    ["ruRU"] = "ru",
+    ["koKR"] = "ko",
+    ["zhCN"] = "cn"
+}
 local optionList = {}
 local optionByKey = {}
 local optionCallbacks = {}
@@ -50,6 +62,29 @@ local options = {
         ["label"] = "LID_SAVEPOSITION",
         ["parent"] = "MOVABLE",
         ["default"] = true
+    },
+    {
+        ["key"] = "RESTORESTATE",
+        ["kind"] = "toggle",
+        ["label"] = "LID_RESTORESTATE",
+        ["default"] = true
+    },
+    {
+        ["key"] = "HISTORY",
+        ["kind"] = "toggle",
+        ["label"] = "LID_HISTORY",
+        ["default"] = true
+    },
+    {
+        ["key"] = "HISTORYMAX",
+        ["kind"] = "slider",
+        ["label"] = "LID_HISTORYMAX",
+        ["parent"] = "HISTORY",
+        ["default"] = 20,
+        ["min"] = 2,
+        ["max"] = 50,
+        ["step"] = 1,
+        ["decimals"] = 0
     },
     {
         ["key"] = "CATTABS",
@@ -124,6 +159,13 @@ local options = {
         ["default"] = true
     },
     {
+        ["key"] = "TTTRACKER",
+        ["kind"] = "toggle",
+        ["label"] = "LID_TTTRACKER",
+        ["parent"] = "ACHTOOLTIP",
+        ["default"] = true
+    },
+    {
         ["key"] = "TTID",
         ["kind"] = "toggle",
         ["label"] = "LID_TTID",
@@ -164,6 +206,12 @@ local options = {
         ["kind"] = "toggle",
         ["label"] = "LID_LINKTRACK",
         ["parent"] = "LINKS",
+        ["default"] = true
+    },
+    {
+        ["key"] = "WOWHEAD",
+        ["kind"] = "toggle",
+        ["label"] = "LID_WOWHEAD",
         ["default"] = true
     },
     {
@@ -584,7 +632,62 @@ end
 
 function AchievementsUtils:OpenToAchievement(id)
     if not AchievementsUtils:OpenAchievementUI() then return end
+    if type(AchievementsUtils.HideExtraTab) == "function" then AchievementsUtils:HideExtraTab() end
+    local tab = _G["AchievementFrameTab1"]
+    if tab and tab.Click and AchievementFrame.selectedTab ~= 1 then tab:Click() end
     if type(AchievementFrame_SelectAchievement) == "function" then AchievementFrame_SelectAchievement(id) end
+end
+
+function AchievementsUtils:GetWowheadURL(id)
+    if type(id) ~= "number" then return nil end
+    local prefix = WOWHEAD_LOCALES[GetLocale()]
+    if prefix then return format("https://www.wowhead.com/%s/achievement=%d", prefix, id) end
+
+    return format("https://www.wowhead.com/achievement=%d", id)
+end
+
+local function SetupWowheadPopup()
+    if type(StaticPopupDialogs) ~= "table" then return false end
+    if type(StaticPopup_Show) ~= "function" then return false end
+    if StaticPopupDialogs[WOWHEAD_POPUP] then return true end
+    StaticPopupDialogs[WOWHEAD_POPUP] = {
+        ["text"] = "%s",
+        ["button1"] = OKAY or "OK",
+        ["hasEditBox"] = true,
+        ["editBoxWidth"] = 260,
+        ["timeout"] = 0,
+        ["whileDead"] = true,
+        ["hideOnEscape"] = true,
+        ["preferredIndex"] = 3,
+        ["OnShow"] = function(sel, data)
+            local box = sel.editBox
+            if box == nil and sel.GetName then box = _G[(sel:GetName() or "") .. "EditBox"] end
+            if box == nil then return end
+            box:SetText(data or "")
+            box:HighlightText()
+            box:SetFocus()
+        end,
+        ["EditBoxOnEnterPressed"] = function(sel) sel:GetParent():Hide() end,
+        ["EditBoxOnEscapePressed"] = function(sel) sel:GetParent():Hide() end
+    }
+
+    return true
+end
+
+function AchievementsUtils:ShowWowheadLink(id)
+    local url = AchievementsUtils:GetWowheadURL(id)
+    if url == nil then return end
+    local ach = AchievementsUtils:GetAchievement(id)
+    local name = tostring(id)
+    if ach then name = ach.name end
+    if not SetupWowheadPopup() then
+        AchievementsUtils:MSG(AchievementsUtils:Trans("LID_WOWHEADPOPUP", nil, name), url)
+
+        return
+    end
+
+    StaticPopupDialogs[WOWHEAD_POPUP].text = AchievementsUtils:Trans("LID_WOWHEADPOPUP", nil, "%s")
+    StaticPopup_Show(WOWHEAD_POPUP, name, nil, url)
 end
 
 function AchievementsUtils:GetPoints(id)

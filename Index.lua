@@ -25,6 +25,7 @@ local function NeedsCriteria()
     if AchievementsUtils:IsEnabled("REMINDERS") then return true end
     if AchievementsUtils:IsEnabled("TTREQUIREDBY") then return true end
     if AchievementsUtils:IsEnabled("TABRELATED") then return true end
+    if AchievementsUtils:IsEnabled("TABSUGGESTIONS") then return true end
     if AchievementsUtils:IsEnabled("AUTOTRACKTIMED") then return true end
 
     return false
@@ -60,6 +61,7 @@ local function ScanCriteria(entry)
     for i = 1, num do
         local criteriaString, criteriaType, _, _, _, _, _, assetID = GetAchievementCriteriaInfo(id, i)
         if criteriaType == metaType and type(assetID) == "number" and assetID > 0 then
+            entry.isMeta = true
             local list = index.requiredBy[assetID]
             if list == nil then
                 list = {}
