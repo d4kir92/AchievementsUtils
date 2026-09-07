@@ -108,12 +108,14 @@ local function StepCategories()
         build.catPos = build.catPos + 1
         local categoryID = build.categories[build.catPos]
         if categoryID == nil then return true end
-        local categoryName = GetCategoryInfo(categoryID)
-        index.categories[categoryID] = categoryName
-        local num = GetCategoryNumAchievements(categoryID) or 0
-        for i = 1, num do
-            local id = GetAchievementInfo(categoryID, i)
-            if type(id) == "number" then AddAchievement(id, categoryID, categoryName) end
+        if type(categoryID) == "number" then
+            local categoryName = GetCategoryInfo(categoryID)
+            index.categories[categoryID] = categoryName
+            local num = GetCategoryNumAchievements(categoryID) or 0
+            for i = 1, num do
+                local id = GetAchievementInfo(categoryID, i)
+                if type(id) == "number" then AddAchievement(id, categoryID, categoryName) end
+            end
         end
     end
 
@@ -174,10 +176,12 @@ function AchievementsUtils:BuildIndex(force)
         return true
     end
 
+    local categories = GetCategoryList()
+    if type(categories) ~= "table" then categories = {} end
     index = NewIndex()
     index.criteriaWanted = NeedsCriteria()
     build = {
-        ["categories"] = {GetCategoryList()},
+        ["categories"] = categories,
         ["catPos"] = 0,
         ["critPos"] = 0
     }

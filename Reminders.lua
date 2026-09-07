@@ -86,9 +86,7 @@ local function HandleUnit(tooltip, unit)
     local changed = AddLines(tooltip, name)
     if AchievementsUtils:IsEnabled("REMINDERCLASSES") and UnitIsPlayer(unit) then
         local className = UnitClass(unit)
-        if not AchievementsUtils:IsSecret(className) then
-            if AddLines(tooltip, className) then changed = true end
-        end
+        if not AchievementsUtils:IsSecret(className) and AddLines(tooltip, className) then changed = true end
     end
 
     Finish(tooltip, changed)

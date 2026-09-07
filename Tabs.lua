@@ -3,6 +3,7 @@ local ROW_HEIGHT = 26
 local HEADER_HEIGHT = 30
 local FOOTER_HEIGHT = 18
 local MAX_ROWS = 40
+local STRATA_ORDER = {"BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG"}
 local tabDefs = {
     {
         ["key"] = "TABSEARCH",
@@ -389,23 +390,44 @@ local function CreateRow(parentFrame, i)
     return row
 end
 
+local function RaisePanel()
+    if panel == nil then return end
+    if type(AchievementFrame) ~= "table" then return end
+    local strata = AchievementFrame:GetFrameStrata()
+    local target = "HIGH"
+    for i, value in ipairs(STRATA_ORDER) do
+        if value == strata then
+            target = STRATA_ORDER[i + 1] or value
+            break
+        end
+    end
+
+    panel:SetFrameStrata(target)
+    panel:SetFrameLevel(20)
+end
+
 local function CreatePanel()
     if panel ~= nil then return end
     if type(AchievementFrame) ~= "table" then return end
     panel = CreateFrame("Frame", "AchievementsUtilsPanel", AchievementFrame)
-    panel:SetPoint("TOPLEFT", AchievementFrame, "TOPLEFT", 20, -70)
+    local top = _G["AchievementFrameCategories"]
+    if top then
+        panel:SetPoint("TOPLEFT", top, "TOPLEFT", -4, 6)
+    else
+        panel:SetPoint("TOPLEFT", AchievementFrame, "TOPLEFT", 20, -70)
+    end
+
     panel:SetPoint("BOTTOMRIGHT", AchievementFrame, "BOTTOMRIGHT", -22, 26)
-    panel:SetFrameStrata(AchievementFrame:GetFrameStrata())
-    panel:SetFrameLevel(AchievementFrame:GetFrameLevel() + 20)
+    RaisePanel()
     panel:EnableMouse(true)
     panel:EnableMouseWheel(true)
     panel:Hide()
     panel.bg = panel:CreateTexture(nil, "BACKGROUND")
     panel.bg:SetAllPoints(panel)
     if panel.bg.SetColorTexture then
-        panel.bg:SetColorTexture(0.04, 0.04, 0.06, 0.96)
+        panel.bg:SetColorTexture(0.04, 0.04, 0.06, 1)
     else
-        panel.bg:SetTexture(0.04, 0.04, 0.06, 0.96)
+        panel.bg:SetTexture(0.04, 0.04, 0.06, 1)
     end
 
     panel:SetScript(
@@ -504,6 +526,7 @@ function AchievementsUtils:ShowExtraTab(key)
     if panel == nil then return end
     activeTab = key
     offset = 0
+    RaisePanel()
     panel:Show()
     if key == "TABSEARCH" then
         searchBox:Show()
@@ -519,7 +542,9 @@ end
 local function CreateTab(def, index)
     local name = "AchievementsUtilsTab" .. index
     local tab = nil
-    if AchievementsUtils:CheckTemplates("PanelTabButtonTemplate") then
+    if AchievementsUtils:CheckTemplates("AchievementFrameTabButtonTemplate") then
+        tab = CreateFrame("Button", name, AchievementFrame, "AchievementFrameTabButtonTemplate")
+    elseif AchievementsUtils:CheckTemplates("PanelTabButtonTemplate") then
         tab = CreateFrame("Button", name, AchievementFrame, "PanelTabButtonTemplate")
     elseif AchievementsUtils:CheckTemplates("CharacterFrameTabButtonTemplate") then
         tab = CreateFrame("Button", name, AchievementFrame, "CharacterFrameTabButtonTemplate")
@@ -544,7 +569,7 @@ local function CreateTab(def, index)
     else
         tab:SetText(label)
         if type(PanelTemplates_TabResize) == "function" and tab.Left then
-            PanelTemplates_TabResize(tab, 0)
+            PanelTemplates_TabResize(tab, 30)
         elseif tab.GetTextWidth then
             tab:SetWidth(tab:GetTextWidth() + 34)
         end
@@ -565,31 +590,35 @@ local function CreateTab(def, index)
     return tab
 end
 
+local function GetTabChainOffset()
+    local third = _G["AchievementFrameTab3"]
+    if third and third.GetNumPoints and third:GetNumPoints() > 0 then
+        local point, _, relativePoint, x, y = third:GetPoint(1)
+        if point == "LEFT" and relativePoint == "RIGHT" and type(x) == "number" then return x, y or 0 end
+    end
+
+    return -5, 0
+end
+
 local function LayoutTabs()
     local previous = nil
     local lastBlizzard = nil
     for i = 1, 10 do
         local blizzardTab = _G["AchievementFrameTab" .. i]
-        if blizzardTab then lastBlizzard = blizzardTab end
+        if blizzardTab and blizzardTab:IsShown() then lastBlizzard = blizzardTab end
     end
 
+    local chainX, chainY = GetTabChainOffset()
     for _, tab in ipairs(tabs) do
         if AchievementsUtils:IsEnabled(tab.key) then
             tab:ClearAllPoints()
-            if previous then
-                if previous.auCustom or tab.auCustom then
-                    tab:SetPoint("LEFT", previous, "RIGHT", 2, 0)
-                else
-                    tab:SetPoint("LEFT", previous, "RIGHT", -14, 0)
-                end
-            elseif lastBlizzard then
-                if tab.auCustom then
-                    tab:SetPoint("LEFT", lastBlizzard, "RIGHT", 2, 4)
-                else
-                    tab:SetPoint("LEFT", lastBlizzard, "RIGHT", -14, 0)
-                end
+            local anchor = previous or lastBlizzard
+            if anchor == nil then
+                tab:SetPoint("TOPLEFT", AchievementFrame, "BOTTOMLEFT", 17, 3)
+            elseif tab.auCustom or anchor.auCustom then
+                tab:SetPoint("LEFT", anchor, "RIGHT", 2, 0)
             else
-                tab:SetPoint("BOTTOMLEFT", AchievementFrame, "BOTTOMLEFT", 11, -28)
+                tab:SetPoint("LEFT", anchor, "RIGHT", chainX, chainY)
             end
 
             tab:Show()

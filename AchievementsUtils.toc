@@ -7,25 +7,35 @@
 
 ## Version: 0.1.0
 ## Title: AchievementsUtils |T236373:16:16:0:0|t by |cff55d2ffD4KiR |T132115:16:16:0:0|t
-## Notes: 
-## Notes-deDE: 
-## Notes-esES: 
-## Notes-esMX: 
-## Notes-frFR: 
-## Notes-itIT: 
-## Notes-koKR: 
-## Notes-ptBR: 
-## Notes-ruRU: 
-## Notes-zhCN: 
-## Notes-zhTW: 
+## Notes: Adds search, suggestions, watch list and related tabs to the achievement window, extra tooltip information and reminders.
+## Notes-deDE: Fügt dem Erfolgsfenster Tabs für Suche, Vorschläge, Merkliste und verwandte Erfolge hinzu, dazu mehr Tooltip-Infos und Erinnerungen.
+## Notes-esES: Añade pestañas de búsqueda, sugerencias, lista y logros relacionados a la ventana de logros, más información en los tooltips y recordatorios.
+## Notes-esMX: Añade pestañas de búsqueda, sugerencias, lista y logros relacionados a la ventana de logros, más información en los tooltips y recordatorios.
+## Notes-frFR: Ajoute des onglets recherche, suggestions, liste et hauts faits liés à la fenêtre des hauts faits, plus d'infos dans les infobulles et des rappels.
+## Notes-itIT: Aggiunge alla finestra delle imprese le schede ricerca, suggerimenti, lista e imprese correlate, più informazioni nei tooltip e promemoria.
+## Notes-koKR: 업적 창에 검색, 추천, 목록, 관련 업적 탭을 추가하고 툴팁 정보와 알림을 제공합니다.
+## Notes-ptBR: Adiciona abas de busca, sugestões, lista e conquistas relacionadas à janela de conquistas, mais informações nas dicas e lembretes.
+## Notes-ruRU: Добавляет в окно достижений вкладки поиска, предложений, списка и связанных достижений, больше сведений в подсказках и напоминания.
+## Notes-zhCN: 为成就窗口添加搜索、推荐、关注和相关成就标签页，并提供更多提示信息与提醒。
+## Notes-zhTW: 為成就視窗加入搜尋、推薦、關注與相關成就分頁，並提供更多提示資訊與提醒。
 ## Author: D4KiR
-## Category: NEW
+## Category: Achievements
+## Category-deDE: Erfolge
+## Category-esES: Logros
+## Category-esMX: Logros
+## Category-frFR: Hauts faits
+## Category-itIT: Imprese
+## Category-koKR: 업적
+## Category-ptBR: Conquistas
+## Category-ruRU: Достижения
+## Category-zhCN: 成就
+## Category-zhTW: 成就
 ## DefaultState: enabled
 ## SavedVariables: AchievementsUtilsDB
 ## SavedVariablesPerCharacter: AchievementsUtilsPCDB
-## X-Curse-Project-ID: 
-## X-Wago-ID: 
-## IconTexture: 
+## X-Curse-Project-ID:
+## X-Wago-ID:
+## IconTexture: 236373
 
 libs\D4Lib\D4Lib.xml
 
@@ -42,4 +52,10 @@ locale\zhCN.lua
 locale\zhTW.lua
 
 Core.lua
+Index.lua
+Tooltips.lua
+Frame.lua
+Tabs.lua
+Reminders.lua
+AutoTrack.lua
 Settings.lua
