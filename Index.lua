@@ -1,13 +1,15 @@
 local _, AchievementsUtils = ...
 local BUILD_BUDGET = {
-    ["count"] = 1500,
-    ["time"] = 3
+    ["count"] = 3000,
+    ["time"] = 8
 }
 
 local CRITERIA_BUDGET = {
-    ["count"] = 400,
-    ["time"] = 3
+    ["count"] = 1500,
+    ["time"] = 8
 }
+
+local BUILD_TARGET = 1
 
 local BUILD_DELAY = 0
 local MAX_CRITERIA_MATCHES = 6
@@ -73,6 +75,13 @@ local function Expired(clock, limit)
     return debugprofilestop() - clock >= limit
 end
 
+local function TimeLimit(base)
+    if build == nil or build.started == nil or type(GetTime) ~= "function" then return base end
+    if GetTime() - build.started >= BUILD_TARGET then return nil end
+
+    return base
+end
+
 local function ScanCriteria(entry, metaType)
     local id = entry.id
     local num = GetAchievementNumCriteria(id) or 0
@@ -124,6 +133,7 @@ end
 
 local function StepCategories()
     local clock = Clock()
+    local limit = TimeLimit(BUILD_BUDGET.time)
     local processed = 0
     while processed < BUILD_BUDGET.count do
         local categoryID = build.categories[build.catPos + 1]
@@ -144,7 +154,7 @@ local function StepCategories()
             local id, name, points, completed, _, _, _, description, _, icon, reward = GetAchievementInfo(categoryID, build.achPos)
             if type(id) == "number" then AddAchievement(id, categoryID, build.catName, name, points, completed, description, icon, reward) end
             processed = processed + 1
-            if Expired(clock, BUILD_BUDGET.time) then return false end
+            if Expired(clock, limit) then return false end
         end
     end
 
@@ -153,6 +163,7 @@ end
 
 local function StepCriteria()
     local clock = Clock()
+    local limit = TimeLimit(CRITERIA_BUDGET.time)
     local metaType = AchievementsUtils:GetMetaCriteriaType()
     local processed = 0
     while processed < CRITERIA_BUDGET.count do
@@ -161,7 +172,7 @@ local function StepCriteria()
         if entry == nil then return true end
         ScanCriteria(entry, metaType)
         processed = processed + 1
-        if Expired(clock, CRITERIA_BUDGET.time) then return false end
+        if Expired(clock, limit) then return false end
     end
 
     return false
