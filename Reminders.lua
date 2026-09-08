@@ -43,6 +43,7 @@ local function PlayReminderSound()
 end
 
 local function AddLines(tooltip, name)
+    if AchievementsUtils:IsSecret(name) then return false end
     if name == nil or name == "" then return false end
     local list = AchievementsUtils:FindByCriteriaName(name)
     if list == nil then return false end
@@ -80,16 +81,16 @@ local function GetTooltipName()
     local line = _G["GameTooltipTextLeft1"]
     if line == nil then return nil end
     local name = line:GetText()
-    if name == nil or name == "" then return nil end
     if AchievementsUtils:IsSecret(name) then return nil end
+    if name == nil or name == "" then return nil end
 
     return name
 end
 
 local function HandleUnit(tooltip, unit)
     if not AchievementsUtils:IsEnabled("REMINDERUNITS") then return end
-    if unit == nil then return end
     local secret = AchievementsUtils:IsSecret(unit)
+    if not secret and unit == nil then return end
     local name = nil
     if secret then
         name = GetTooltipName()
@@ -97,8 +98,8 @@ local function HandleUnit(tooltip, unit)
         name = UnitName(unit)
     end
 
-    if name == nil or name == "" then return end
     if AchievementsUtils:IsSecret(name) then return end
+    if name == nil or name == "" then return end
     if tooltip.auReminder == name then return end
     tooltip.auReminder = name
     local changed = AddLines(tooltip, name)
@@ -114,6 +115,7 @@ local function HandleItem(tooltip)
     if not AchievementsUtils:IsEnabled("REMINDERITEMS") then return end
     if tooltip.GetItem == nil then return end
     local name = tooltip:GetItem()
+    if AchievementsUtils:IsSecret(name) then return end
     if name == nil or name == "" then return end
     if tooltip.auReminder == name then return end
     tooltip.auReminder = name
@@ -124,14 +126,26 @@ local function HandleObject(tooltip)
     if not AchievementsUtils:IsEnabled("REMINDEROBJECTS") then return end
     if tooltip.GetUnit then
         local _, unit = tooltip:GetUnit()
+        if AchievementsUtils:IsSecret(unit) then return end
         if unit then return end
     end
 
-    if tooltip.GetItem and tooltip:GetItem() then return end
-    if tooltip.GetSpell and tooltip:GetSpell() then return end
+    if tooltip.GetItem then
+        local item = tooltip:GetItem()
+        if AchievementsUtils:IsSecret(item) then return end
+        if item then return end
+    end
+
+    if tooltip.GetSpell then
+        local spell = tooltip:GetSpell()
+        if AchievementsUtils:IsSecret(spell) then return end
+        if spell then return end
+    end
+
     local line = _G["GameTooltipTextLeft1"]
     if line == nil then return end
     local name = line:GetText()
+    if AchievementsUtils:IsSecret(name) then return end
     if name == nil or name == "" then return end
     if tooltip.auReminder == name then return end
     tooltip.auReminder = name
