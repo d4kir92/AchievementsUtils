@@ -1,15 +1,6 @@
 local _, AchievementsUtils = ...
-local BUILD_BUDGET = {
-    ["count"] = 3000,
-    ["time"] = 8
-}
-
-local CRITERIA_BUDGET = {
-    ["count"] = 1500,
-    ["time"] = 8
-}
-
-local BUILD_TARGET = 1
+local BUILD_CHUNK = 200
+local CRITERIA_CHUNK = 200
 local COMBAT_RETRY_DELAY = 1
 
 local BUILD_DELAY = 0
@@ -76,13 +67,6 @@ local function Expired(clock, limit)
     return debugprofilestop() - clock >= limit
 end
 
-local function TimeLimit(base)
-    if build == nil or build.started == nil or type(GetTime) ~= "function" then return base end
-    if GetTime() - build.started >= BUILD_TARGET then return nil end
-
-    return base
-end
-
 local function ScanCriteria(entry, metaType)
     local id = entry.id
     local num = GetAchievementNumCriteria(id) or 0
@@ -133,10 +117,8 @@ local function AddAchievement(id, categoryID, categoryName, name, points, comple
 end
 
 local function StepCategories()
-    local clock = Clock()
-    local limit = TimeLimit(BUILD_BUDGET.time)
     local processed = 0
-    while processed < BUILD_BUDGET.count do
+    while processed < BUILD_CHUNK do
         local categoryID = build.categories[build.catPos + 1]
         if categoryID == nil then return true end
         if type(categoryID) ~= "number" then
@@ -155,7 +137,6 @@ local function StepCategories()
             local id, name, points, completed, _, _, _, description, _, icon, reward = GetAchievementInfo(categoryID, build.achPos)
             if type(id) == "number" then AddAchievement(id, categoryID, build.catName, name, points, completed, description, icon, reward) end
             processed = processed + 1
-            if Expired(clock, limit) then return false end
         end
     end
 
@@ -163,17 +144,14 @@ local function StepCategories()
 end
 
 local function StepCriteria()
-    local clock = Clock()
-    local limit = TimeLimit(CRITERIA_BUDGET.time)
     local metaType = AchievementsUtils:GetMetaCriteriaType()
     local processed = 0
-    while processed < CRITERIA_BUDGET.count do
+    while processed < CRITERIA_CHUNK do
         build.critPos = build.critPos + 1
         local entry = index.list[build.critPos]
         if entry == nil then return true end
         ScanCriteria(entry, metaType)
         processed = processed + 1
-        if Expired(clock, limit) then return false end
     end
 
     return false
@@ -390,7 +368,7 @@ function AchievementsUtils:ScanOpenAchievements(cursor, budget, match, results, 
     local scanned = 0
     local checked = 0
     local clock = nil
-    if budget.time and type(debugprofilestop) == "function" then clock = debugprofilestop() end
+    if budget.time then clock = Clock() end
     while scanned < budget.scan and checked < budget.check do
         cursor = cursor + 1
         local entry = index.list[cursor]
@@ -405,7 +383,7 @@ function AchievementsUtils:ScanOpenAchievements(cursor, budget, match, results, 
             if #results >= maxResults then return cursor, true end
         end
 
-        if clock and debugprofilestop() - clock >= budget.time then break end
+        if Expired(clock, budget.time) then break end
     end
 
     return cursor, false
