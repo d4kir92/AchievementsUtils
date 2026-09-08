@@ -47,6 +47,7 @@ AchievementsUtils:AddTrans("zhTW", "LID_INDEXUNAVAILABLE", "此客戶端沒有�
 AchievementsUtils:AddTrans("zhTW", "LID_INDEXIDLE", "索引尚未建立。")
 AchievementsUtils:AddTrans("zhTW", "LID_INDEXBUILDING", "正在建立索引...（%s）")
 AchievementsUtils:AddTrans("zhTW", "LID_INDEXCRITERIA", "正在讀取條件...（%s）")
+AchievementsUtils:AddTrans("zhTW", "LID_INDEXCOMBAT", "戰鬥中已暫停...")
 AchievementsUtils:AddTrans("zhTW", "LID_INDEXREADY", "索引就緒（%s 個成就）")
 AchievementsUtils:AddTrans("zhTW", "LID_INDEXREBUILD", "重建索引")
 AchievementsUtils:AddTrans("zhTW", "LID_PROGRESS", "進度：%s")

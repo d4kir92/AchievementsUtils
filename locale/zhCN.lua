@@ -47,6 +47,7 @@ AchievementsUtils:AddTrans("zhCN", "LID_INDEXUNAVAILABLE", "此客户端没有�
 AchievementsUtils:AddTrans("zhCN", "LID_INDEXIDLE", "索引尚未建立。")
 AchievementsUtils:AddTrans("zhCN", "LID_INDEXBUILDING", "正在建立索引...（%s）")
 AchievementsUtils:AddTrans("zhCN", "LID_INDEXCRITERIA", "正在读取条件...（%s）")
+AchievementsUtils:AddTrans("zhCN", "LID_INDEXCOMBAT", "战斗中已暂停...")
 AchievementsUtils:AddTrans("zhCN", "LID_INDEXREADY", "索引就绪（%s 个成就）")
 AchievementsUtils:AddTrans("zhCN", "LID_INDEXREBUILD", "重建索引")
 AchievementsUtils:AddTrans("zhCN", "LID_PROGRESS", "进度：%s")

@@ -47,6 +47,7 @@ AchievementsUtils:AddTrans("deDE", "LID_INDEXUNAVAILABLE", "Dieser Client hat ke
 AchievementsUtils:AddTrans("deDE", "LID_INDEXIDLE", "Index noch nicht erstellt.")
 AchievementsUtils:AddTrans("deDE", "LID_INDEXBUILDING", "Index wird erstellt... (%s)")
 AchievementsUtils:AddTrans("deDE", "LID_INDEXCRITERIA", "Kriterien werden gelesen... (%s)")
+AchievementsUtils:AddTrans("deDE", "LID_INDEXCOMBAT", "Pausiert im Kampf...")
 AchievementsUtils:AddTrans("deDE", "LID_INDEXREADY", "Index bereit (%s Erfolge)")
 AchievementsUtils:AddTrans("deDE", "LID_INDEXREBUILD", "Index neu erstellen")
 AchievementsUtils:AddTrans("deDE", "LID_PROGRESS", "Fortschritt: %s")

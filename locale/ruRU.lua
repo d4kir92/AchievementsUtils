@@ -47,6 +47,7 @@ AchievementsUtils:AddTrans("ruRU", "LID_INDEXUNAVAILABLE", "В этом клие
 AchievementsUtils:AddTrans("ruRU", "LID_INDEXIDLE", "Индекс ещё не создан.")
 AchievementsUtils:AddTrans("ruRU", "LID_INDEXBUILDING", "Создание индекса... (%s)")
 AchievementsUtils:AddTrans("ruRU", "LID_INDEXCRITERIA", "Чтение критериев... (%s)")
+AchievementsUtils:AddTrans("ruRU", "LID_INDEXCOMBAT", "Приостановлено в бою...")
 AchievementsUtils:AddTrans("ruRU", "LID_INDEXREADY", "Индекс готов (%s достижений)")
 AchievementsUtils:AddTrans("ruRU", "LID_INDEXREBUILD", "Пересоздать индекс")
 AchievementsUtils:AddTrans("ruRU", "LID_PROGRESS", "Прогресс: %s")

@@ -10,6 +10,7 @@ local CRITERIA_BUDGET = {
 }
 
 local BUILD_TARGET = 1
+local COMBAT_RETRY_DELAY = 1
 
 local BUILD_DELAY = 0
 local MAX_CRITERIA_MATCHES = 6
@@ -180,6 +181,20 @@ end
 
 local function Tick()
     if build == nil then return end
+    if type(InCombatLockdown) == "function" and InCombatLockdown() then
+        build.combat = true
+        if build.pausedAt == nil and type(GetTime) == "function" then build.pausedAt = GetTime() end
+        C_Timer.After(COMBAT_RETRY_DELAY, Tick)
+
+        return
+    end
+
+    build.combat = nil
+    if build.pausedAt then
+        if build.started then build.started = build.started + (GetTime() - build.pausedAt) end
+        build.pausedAt = nil
+    end
+
     if not index.ready then
         if StepCategories() then index.ready = true end
         C_Timer.After(BUILD_DELAY, Tick)
@@ -260,6 +275,7 @@ end
 function AchievementsUtils:GetIndexStatus()
     if not AchievementsUtils:HasAchievementAPI() then return AchievementsUtils:Trans("LID_INDEXUNAVAILABLE") end
     if index == nil then return AchievementsUtils:Trans("LID_INDEXIDLE") end
+    if build and build.combat then return AchievementsUtils:Trans("LID_INDEXCOMBAT") end
     if not index.ready then return AchievementsUtils:Trans("LID_INDEXBUILDING", nil, index.count) end
     if index.criteriaWanted and not index.criteriaReady then
         local pos = 0

@@ -47,6 +47,7 @@ AchievementsUtils:AddTrans("koKR", "LID_INDEXUNAVAILABLE", "이 클라이언트�
 AchievementsUtils:AddTrans("koKR", "LID_INDEXIDLE", "색인이 아직 생성되지 않았습니다.")
 AchievementsUtils:AddTrans("koKR", "LID_INDEXBUILDING", "색인 생성 중... (%s)")
 AchievementsUtils:AddTrans("koKR", "LID_INDEXCRITERIA", "조건 읽는 중... (%s)")
+AchievementsUtils:AddTrans("koKR", "LID_INDEXCOMBAT", "전투 중 일시 중지...")
 AchievementsUtils:AddTrans("koKR", "LID_INDEXREADY", "색인 준비 완료 (업적 %s개)")
 AchievementsUtils:AddTrans("koKR", "LID_INDEXREBUILD", "색인 다시 생성")
 AchievementsUtils:AddTrans("koKR", "LID_PROGRESS", "진행도: %s")

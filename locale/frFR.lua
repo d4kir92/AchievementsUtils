@@ -47,6 +47,7 @@ AchievementsUtils:AddTrans("frFR", "LID_INDEXUNAVAILABLE", "Ce client n'a pas d'
 AchievementsUtils:AddTrans("frFR", "LID_INDEXIDLE", "Index pas encore créé.")
 AchievementsUtils:AddTrans("frFR", "LID_INDEXBUILDING", "Création de l'index... (%s)")
 AchievementsUtils:AddTrans("frFR", "LID_INDEXCRITERIA", "Lecture des critères... (%s)")
+AchievementsUtils:AddTrans("frFR", "LID_INDEXCOMBAT", "En pause pendant le combat...")
 AchievementsUtils:AddTrans("frFR", "LID_INDEXREADY", "Index prêt (%s hauts faits)")
 AchievementsUtils:AddTrans("frFR", "LID_INDEXREBUILD", "Recréer l'index")
 AchievementsUtils:AddTrans("frFR", "LID_PROGRESS", "Progression : %s")

@@ -47,6 +47,7 @@ AchievementsUtils:AddTrans("itIT", "LID_INDEXUNAVAILABLE", "Questo client non ha
 AchievementsUtils:AddTrans("itIT", "LID_INDEXIDLE", "Indice non ancora creato.")
 AchievementsUtils:AddTrans("itIT", "LID_INDEXBUILDING", "Creazione dell'indice... (%s)")
 AchievementsUtils:AddTrans("itIT", "LID_INDEXCRITERIA", "Lettura dei criteri... (%s)")
+AchievementsUtils:AddTrans("itIT", "LID_INDEXCOMBAT", "In pausa durante il combattimento...")
 AchievementsUtils:AddTrans("itIT", "LID_INDEXREADY", "Indice pronto (%s imprese)")
 AchievementsUtils:AddTrans("itIT", "LID_INDEXREBUILD", "Ricrea indice")
 AchievementsUtils:AddTrans("itIT", "LID_PROGRESS", "Progresso: %s")

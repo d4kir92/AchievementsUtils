@@ -47,6 +47,7 @@ AchievementsUtils:AddTrans("enUS", "LID_INDEXUNAVAILABLE", "This client has no a
 AchievementsUtils:AddTrans("enUS", "LID_INDEXIDLE", "Index not built yet.")
 AchievementsUtils:AddTrans("enUS", "LID_INDEXBUILDING", "Building index... (%s)")
 AchievementsUtils:AddTrans("enUS", "LID_INDEXCRITERIA", "Reading criteria... (%s)")
+AchievementsUtils:AddTrans("enUS", "LID_INDEXCOMBAT", "Paused during combat...")
 AchievementsUtils:AddTrans("enUS", "LID_INDEXREADY", "Index ready (%s achievements)")
 AchievementsUtils:AddTrans("enUS", "LID_INDEXREBUILD", "Rebuild index")
 AchievementsUtils:AddTrans("enUS", "LID_PROGRESS", "Progress: %s")

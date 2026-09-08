@@ -47,6 +47,7 @@ AchievementsUtils:AddTrans("ptBR", "LID_INDEXUNAVAILABLE", "Este cliente não te
 AchievementsUtils:AddTrans("ptBR", "LID_INDEXIDLE", "Índice ainda não criado.")
 AchievementsUtils:AddTrans("ptBR", "LID_INDEXBUILDING", "Criando índice... (%s)")
 AchievementsUtils:AddTrans("ptBR", "LID_INDEXCRITERIA", "Lendo critérios... (%s)")
+AchievementsUtils:AddTrans("ptBR", "LID_INDEXCOMBAT", "Pausado em combate...")
 AchievementsUtils:AddTrans("ptBR", "LID_INDEXREADY", "Índice pronto (%s conquistas)")
 AchievementsUtils:AddTrans("ptBR", "LID_INDEXREBUILD", "Recriar índice")
 AchievementsUtils:AddTrans("ptBR", "LID_PROGRESS", "Progresso: %s")
