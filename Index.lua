@@ -1,12 +1,12 @@
 local _, AchievementsUtils = ...
 local BUILD_BUDGET = {
-    ["count"] = 500,
-    ["time"] = 1
+    ["count"] = 1500,
+    ["time"] = 3
 }
 
 local CRITERIA_BUDGET = {
-    ["count"] = 100,
-    ["time"] = 1
+    ["count"] = 400,
+    ["time"] = 3
 }
 
 local BUILD_DELAY = 0
@@ -186,6 +186,7 @@ local function Tick()
         end
     end
 
+    if build.started and type(GetTime) == "function" then index.duration = GetTime() - build.started end
     build = nil
 end
 
@@ -199,7 +200,8 @@ function AchievementsUtils:BuildIndex(force)
             build = build or {
                 ["categories"] = {},
                 ["catPos"] = 0,
-                ["critPos"] = 0
+                ["critPos"] = 0,
+                ["started"] = GetTime and GetTime() or nil
             }
 
             C_Timer.After(BUILD_DELAY, Tick)
@@ -217,7 +219,8 @@ function AchievementsUtils:BuildIndex(force)
     build = {
         ["categories"] = categories,
         ["catPos"] = 0,
-        ["critPos"] = 0
+        ["critPos"] = 0,
+        ["started"] = GetTime and GetTime() or nil
     }
 
     C_Timer.After(BUILD_DELAY, Tick)
@@ -247,7 +250,14 @@ function AchievementsUtils:GetIndexStatus()
     if not AchievementsUtils:HasAchievementAPI() then return AchievementsUtils:Trans("LID_INDEXUNAVAILABLE") end
     if index == nil then return AchievementsUtils:Trans("LID_INDEXIDLE") end
     if not index.ready then return AchievementsUtils:Trans("LID_INDEXBUILDING", nil, index.count) end
-    if index.criteriaWanted and not index.criteriaReady then return AchievementsUtils:Trans("LID_INDEXCRITERIA", nil, index.count) end
+    if index.criteriaWanted and not index.criteriaReady then
+        local pos = 0
+        if build then pos = build.critPos or 0 end
+
+        return AchievementsUtils:Trans("LID_INDEXCRITERIA", nil, format("%d/%d", pos, index.count))
+    end
+
+    if index.duration then return AchievementsUtils:Trans("LID_INDEXREADY", nil, format("%d, %.1fs", index.count, index.duration)) end
 
     return AchievementsUtils:Trans("LID_INDEXREADY", nil, index.count)
 end
