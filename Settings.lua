@@ -261,10 +261,6 @@ loader:SetScript(
         AchievementsUtils:AddSlash("au", HandleSlash)
         AchievementsUtils:AddSlash("achievementsutils", HandleSlash)
         AchievementsUtils:AddSlash("ach", HandleSearchSlash)
-        if AchievementsUtils:HasAchievementAPI() then
-            C_Timer.After(5, function() AchievementsUtils:BuildIndex() end)
-        else
-            AchievementsUtils:MSG(AchievementsUtils:Trans("LID_INDEXUNAVAILABLE"))
-        end
+        if not AchievementsUtils:HasAchievementAPI() then AchievementsUtils:MSG(AchievementsUtils:Trans("LID_INDEXUNAVAILABLE")) end
     end
 )

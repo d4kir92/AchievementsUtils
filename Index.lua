@@ -1,6 +1,15 @@
 local _, AchievementsUtils = ...
-local CATEGORY_CHUNK = 6
-local CRITERIA_CHUNK = 40
+local BUILD_BUDGET = {
+    ["count"] = 500,
+    ["time"] = 1
+}
+
+local CRITERIA_BUDGET = {
+    ["count"] = 100,
+    ["time"] = 1
+}
+
+local BUILD_DELAY = 0
 local MAX_CRITERIA_MATCHES = 6
 local index = nil
 local build = nil
@@ -52,14 +61,25 @@ local function AddCriteriaName(entry, name, criteriaIndex)
     index.criteriaCount = index.criteriaCount + 1
 end
 
-local function ScanCriteria(entry)
+local function Clock()
+    if type(debugprofilestop) ~= "function" then return nil end
+
+    return debugprofilestop()
+end
+
+local function Expired(clock, limit)
+    if clock == nil or limit == nil then return false end
+
+    return debugprofilestop() - clock >= limit
+end
+
+local function ScanCriteria(entry, metaType)
     local id = entry.id
     local num = GetAchievementNumCriteria(id) or 0
     if num <= 0 then return end
-    local metaType = AchievementsUtils:GetMetaCriteriaType()
     local wantNames = not entry.completed
     for i = 1, num do
-        local criteriaString, criteriaType, _, _, _, _, _, assetID = GetAchievementCriteriaInfo(id, i)
+        local criteriaString, criteriaType, _, _, _, _, _, assetID, _, _, _, duration = GetAchievementCriteriaInfo(id, i)
         if criteriaType == metaType and type(assetID) == "number" and assetID > 0 then
             entry.isMeta = true
             local list = index.requiredBy[assetID]
@@ -73,51 +93,58 @@ local function ScanCriteria(entry)
             AddCriteriaName(entry, criteriaString, i)
         end
 
-        if wantNames then
-            local duration = select(12, GetAchievementCriteriaInfo(id, i))
-            if type(duration) == "number" and duration > 0 and entry.timed ~= true then
-                entry.timed = true
-                tinsert(index.timed, id)
-            end
+        if wantNames and entry.timed ~= true and type(duration) == "number" and duration > 0 then
+            entry.timed = true
+            tinsert(index.timed, id)
         end
     end
 end
 
-local function AddAchievement(id, categoryID, categoryName)
+local function AddAchievement(id, categoryID, categoryName, name, points, completed, description, icon, reward)
     if index.byId[id] then return end
-    local ach = AchievementsUtils:GetAchievement(id)
-    if ach == nil then return end
+    if name == nil then return end
     local entry = {
-        ["id"] = ach.id,
-        ["name"] = ach.name,
-        ["lname"] = string.lower(ach.name),
-        ["ldesc"] = string.lower(ach.description or ""),
-        ["lreward"] = string.lower(ach.reward or ""),
-        ["points"] = ach.points,
-        ["icon"] = ach.icon,
-        ["completed"] = ach.completed,
+        ["id"] = id,
+        ["name"] = name,
+        ["lname"] = string.lower(name),
+        ["ldesc"] = string.lower(description or ""),
+        ["lreward"] = string.lower(reward or ""),
+        ["points"] = points or 0,
+        ["icon"] = icon,
+        ["completed"] = completed == true,
         ["category"] = categoryID,
-        ["categoryName"] = categoryName or ""
+        ["categoryName"] = categoryName or "",
+        ["lcategory"] = string.lower(categoryName or "")
     }
 
-    index.byId[entry.id] = entry
+    index.byId[id] = entry
     tinsert(index.list, entry)
     index.count = index.count + 1
 end
 
 local function StepCategories()
-    for _ = 1, CATEGORY_CHUNK do
-        build.catPos = build.catPos + 1
-        local categoryID = build.categories[build.catPos]
+    local clock = Clock()
+    local processed = 0
+    while processed < BUILD_BUDGET.count do
+        local categoryID = build.categories[build.catPos + 1]
         if categoryID == nil then return true end
-        if type(categoryID) == "number" then
-            local categoryName = GetCategoryInfo(categoryID)
-            index.categories[categoryID] = categoryName
-            local num = GetCategoryNumAchievements(categoryID) or 0
-            for i = 1, num do
-                local id = GetAchievementInfo(categoryID, i)
-                if type(id) == "number" then AddAchievement(id, categoryID, categoryName) end
-            end
+        if type(categoryID) ~= "number" then
+            build.catPos = build.catPos + 1
+            build.achTotal = nil
+        elseif build.achTotal == nil then
+            build.catName = GetCategoryInfo(categoryID)
+            index.categories[categoryID] = build.catName
+            build.achTotal = GetCategoryNumAchievements(categoryID) or 0
+            build.achPos = 0
+        elseif build.achPos >= build.achTotal then
+            build.catPos = build.catPos + 1
+            build.achTotal = nil
+        else
+            build.achPos = build.achPos + 1
+            local id, name, points, completed, _, _, _, description, _, icon, reward = GetAchievementInfo(categoryID, build.achPos)
+            if type(id) == "number" then AddAchievement(id, categoryID, build.catName, name, points, completed, description, icon, reward) end
+            processed = processed + 1
+            if Expired(clock, BUILD_BUDGET.time) then return false end
         end
     end
 
@@ -125,11 +152,16 @@ local function StepCategories()
 end
 
 local function StepCriteria()
-    for _ = 1, CRITERIA_CHUNK do
+    local clock = Clock()
+    local metaType = AchievementsUtils:GetMetaCriteriaType()
+    local processed = 0
+    while processed < CRITERIA_BUDGET.count do
         build.critPos = build.critPos + 1
         local entry = index.list[build.critPos]
         if entry == nil then return true end
-        ScanCriteria(entry)
+        ScanCriteria(entry, metaType)
+        processed = processed + 1
+        if Expired(clock, CRITERIA_BUDGET.time) then return false end
     end
 
     return false
@@ -139,7 +171,7 @@ local function Tick()
     if build == nil then return end
     if not index.ready then
         if StepCategories() then index.ready = true end
-        C_Timer.After(0, Tick)
+        C_Timer.After(BUILD_DELAY, Tick)
 
         return
     end
@@ -148,7 +180,7 @@ local function Tick()
         if StepCriteria() then
             index.criteriaReady = true
         else
-            C_Timer.After(0, Tick)
+            C_Timer.After(BUILD_DELAY, Tick)
 
             return
         end
@@ -170,7 +202,7 @@ function AchievementsUtils:BuildIndex(force)
                 ["critPos"] = 0
             }
 
-            C_Timer.After(0, Tick)
+            C_Timer.After(BUILD_DELAY, Tick)
 
             return true
         end
@@ -188,7 +220,7 @@ function AchievementsUtils:BuildIndex(force)
         ["critPos"] = 0
     }
 
-    C_Timer.After(0, Tick)
+    C_Timer.After(BUILD_DELAY, Tick)
 
     return true
 end
@@ -201,6 +233,10 @@ end
 
 function AchievementsUtils:IsIndexReady()
     return index ~= nil and index.ready
+end
+
+function AchievementsUtils:IsIndexBuilding()
+    return build ~= nil
 end
 
 function AchievementsUtils:IsCriteriaIndexReady()
@@ -243,6 +279,15 @@ end
 
 local function SortResults(a, b)
     if a.completed ~= b.completed then return b.completed end
+    if a.points ~= b.points then return a.points > b.points end
+
+    return a.name < b.name
+end
+
+local function SortOpen(a, b)
+    local aStarted = (a.progressDone or 0) > 0
+    local bStarted = (b.progressDone or 0) > 0
+    if aStarted ~= bStarted then return aStarted end
     if a.points ~= b.points then return a.points > b.points end
 
     return a.name < b.name
@@ -296,23 +341,51 @@ function AchievementsUtils:FindZoneAchievements(zoneName, maxResults)
     return results
 end
 
-function AchievementsUtils:FindInProgress(maxResults)
-    local results = {}
-    if index == nil or not index.ready then return results end
-    maxResults = maxResults or 40
-    for _, entry in ipairs(index.list) do
-        if not entry.completed then
+function AchievementsUtils:GetIndexCount()
+    if index == nil then return 0 end
+
+    return index.count or 0
+end
+
+function AchievementsUtils:ScanOpenAchievements(cursor, budget, match, results, maxResults)
+    cursor = cursor or 0
+    if index == nil or not index.ready then return cursor, true end
+    local scanned = 0
+    local checked = 0
+    local clock = nil
+    if budget.time and type(debugprofilestop) == "function" then clock = debugprofilestop() end
+    while scanned < budget.scan and checked < budget.check do
+        cursor = cursor + 1
+        local entry = index.list[cursor]
+        if entry == nil then return cursor, true end
+        scanned = scanned + 1
+        if not entry.completed and (match == nil or match(entry)) then
+            checked = checked + 1
             local done, total = AchievementsUtils:GetCriteriaProgress(entry.id)
-            if total > 1 and done > 0 and done < total then
-                entry.progressDone = done
-                entry.progressTotal = total
-                tinsert(results, entry)
-                if #results >= maxResults then break end
-            end
+            entry.progressDone = done
+            entry.progressTotal = total
+            tinsert(results, entry)
+            if #results >= maxResults then return cursor, true end
         end
+
+        if clock and debugprofilestop() - clock >= budget.time then break end
     end
 
-    return results
+    return cursor, false
+end
+
+function AchievementsUtils:SortOpenResults(results)
+    table.sort(results, SortOpen)
+end
+
+function AchievementsUtils:GetExpansionName()
+    if type(GetExpansionLevel) ~= "function" then return nil end
+    local level = GetExpansionLevel()
+    if type(level) ~= "number" then return nil end
+    local name = _G["EXPANSION_NAME" .. level]
+    if type(name) ~= "string" or name == "" then return nil end
+
+    return name
 end
 
 function AchievementsUtils:FindCategoryAchievements(categoryID, onlyOpen, maxResults)
@@ -354,5 +427,19 @@ AchievementsUtils:AddEvent(
         if index == nil then return end
         local entry = index.byId[id]
         if entry then entry.completed = true end
+    end
+)
+
+AchievementsUtils:OnAchievementUIReady(
+    function()
+        if type(AchievementFrame) ~= "table" then return end
+        AchievementFrame:HookScript(
+            "OnShow",
+            function()
+                AchievementsUtils:BuildIndex()
+            end
+        )
+
+        if AchievementFrame:IsShown() then AchievementsUtils:BuildIndex() end
     end
 )

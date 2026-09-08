@@ -186,6 +186,18 @@ local function BuildLines(id)
     if AchievementsUtils:IsEnabled("TTPROGRESS") then AddProgressLines(lines, id, maxLines) end
     if AchievementsUtils:IsEnabled("TTSERIES") then AddSeriesLines(lines, id) end
     if AchievementsUtils:IsEnabled("TTREQUIREDBY") then AddRequiredByLines(lines, id) end
+    if AchievementsUtils:IsEnabled("TABWATCH") and AchievementsUtils:IsWatched(id) then
+        tinsert(
+            lines,
+            {
+                ["left"] = AchievementsUtils:Trans("LID_ONWATCHLIST"),
+                ["r"] = 0.33,
+                ["g"] = 0.82,
+                ["b"] = 1
+            }
+        )
+    end
+
     if AchievementsUtils:IsEnabled("TTID") then
         tinsert(
             lines,
@@ -261,9 +273,21 @@ local function ShowOwnTooltip(owner, id)
         end
     end
 
+    if AchievementsUtils:IsEnabled("TABWATCH") then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKWATCH"), 0.6, 0.6, 0.6)
+    end
+
     GameTooltip.auAchievement = id
     GameTooltip:Show()
     adding = false
+end
+
+function AchievementsUtils:RefreshAchievementTooltip(owner, id)
+    if type(owner) ~= "table" or type(id) ~= "number" then return end
+    if GameTooltip.auAchievement ~= id then return end
+    GameTooltip.auAchievement = nil
+    ShowOwnTooltip(owner, id)
 end
 
 local function HideOwnTooltip()
