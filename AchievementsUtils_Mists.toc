@@ -50,6 +50,7 @@ Index.lua
 Tooltips.lua
 Frame.lua
 History.lua
+Menu.lua
 Tabs.lua
 Reminders.lua
 AutoTrack.lua

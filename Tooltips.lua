@@ -273,7 +273,10 @@ local function ShowOwnTooltip(owner, id)
         end
     end
 
-    if AchievementsUtils:IsEnabled("TABWATCH") then
+    if AchievementsUtils:IsEnabled("CONTEXTMENU") then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKMENU"), 0.6, 0.6, 0.6)
+    elseif AchievementsUtils:IsEnabled("TABWATCH") then
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKWATCH"), 0.6, 0.6, 0.6)
     end
@@ -490,7 +493,7 @@ local function OnItemRef(link, _, button)
         return
     end
 
-    if AchievementsUtils:IsEnabled("LINKTRACK") and IsControlKeyDown() then
+    if AchievementsUtils:IsEnabled("LINKTRACK") and AchievementsUtils:CanTrack() and IsControlKeyDown() then
         local now = GetTime()
         if lastCtrlID == id and (now - lastCtrlTime) < CTRL_TIMEOUT then
             lastCtrlID = nil

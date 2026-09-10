@@ -24,6 +24,7 @@ end
 
 local function TrackAuto(id)
     if type(id) ~= "number" then return false end
+    if not AchievementsUtils:CanTrack() then return false end
     if autoTracked[id] then return false end
     if AchievementsUtils:IsTracked(id) then return false end
     if CountAuto() >= GetMax() then return false end
@@ -78,12 +79,14 @@ end
 
 local function QueueZoneUpdate()
     if zonePending then return end
+    if not AchievementsUtils:CanTrack() then return end
     if not AchievementsUtils:IsEnabled("AUTOTRACK") then return end
     zonePending = true
     C_Timer.After(ZONE_DELAY, UpdateZone)
 end
 
 local function CheckTimed()
+    if not AchievementsUtils:CanTrack() then return end
     if not AchievementsUtils:IsEnabled("AUTOTRACKTIMED") then return end
     local list = AchievementsUtils:GetTimedAchievements()
     if list == nil then return end

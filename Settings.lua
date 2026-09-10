@@ -118,6 +118,32 @@ local function AddDropdown(info)
     })
 end
 
+local function AddOption(info)
+    if info.needsTrack == true and not AchievementsUtils:CanTrack() then return end
+    if info.kind == "category" then
+        settings:AddCategory({
+            ["label"] = info.label,
+            ["key"] = info.key
+        })
+
+        return
+    end
+
+    if info.kind == "toggle" then
+        AddToggle(info)
+
+        return
+    end
+
+    if info.kind == "slider" then
+        AddSlider(info)
+
+        return
+    end
+
+    if info.kind == "dropdown" then AddDropdown(info) end
+end
+
 local function BuildFooter()
     local footer = settings:AddFooter({
         ["height"] = 26
@@ -171,18 +197,7 @@ function AchievementsUtils:InitSettings()
     settings:SuspendLayout()
     settings:AddSearch()
     for _, info in ipairs(AchievementsUtils:GetOptionList()) do
-        if info.kind == "category" then
-            settings:AddCategory({
-                ["label"] = info.label,
-                ["key"] = info.key
-            })
-        elseif info.kind == "toggle" then
-            AddToggle(info)
-        elseif info.kind == "slider" then
-            AddSlider(info)
-        elseif info.kind == "dropdown" then
-            AddDropdown(info)
-        end
+        AddOption(info)
     end
 
     BuildFooter()

@@ -68,6 +68,12 @@ local options = {
         ["default"] = true
     },
     {
+        ["key"] = "CONTEXTMENU",
+        ["kind"] = "toggle",
+        ["label"] = "LID_CONTEXTMENU",
+        ["default"] = true
+    },
+    {
         ["key"] = "HISTORY",
         ["kind"] = "toggle",
         ["label"] = "LID_HISTORY",
@@ -211,6 +217,7 @@ local options = {
         ["kind"] = "toggle",
         ["label"] = "LID_LINKTRACK",
         ["parent"] = "LINKS",
+        ["needsTrack"] = true,
         ["default"] = true
     },
     {
@@ -283,12 +290,14 @@ local options = {
     {
         ["key"] = "CATAUTOTRACK",
         ["kind"] = "category",
-        ["label"] = "LID_AUTOTRACK"
+        ["label"] = "LID_AUTOTRACK",
+        ["needsTrack"] = true
     },
     {
         ["key"] = "AUTOTRACK",
         ["kind"] = "toggle",
         ["label"] = "LID_ENABLEAUTOTRACK",
+        ["needsTrack"] = true,
         ["default"] = true
     },
     {
@@ -297,6 +306,7 @@ local options = {
         ["label"] = "LID_AUTOTRACKZONE",
         ["parent"] = "AUTOTRACK",
         ["needsIndex"] = true,
+        ["needsTrack"] = true,
         ["default"] = true
     },
     {
@@ -305,6 +315,7 @@ local options = {
         ["label"] = "LID_AUTOTRACKTIMED",
         ["parent"] = "AUTOTRACK",
         ["needsIndex"] = true,
+        ["needsTrack"] = true,
         ["default"] = true
     },
     {
@@ -312,6 +323,7 @@ local options = {
         ["kind"] = "toggle",
         ["label"] = "LID_AUTOTRACKWATCH",
         ["parent"] = "AUTOTRACK",
+        ["needsTrack"] = true,
         ["default"] = false
     },
     {
@@ -319,6 +331,7 @@ local options = {
         ["kind"] = "slider",
         ["label"] = "LID_AUTOTRACKMAX",
         ["parent"] = "AUTOTRACK",
+        ["needsTrack"] = true,
         ["default"] = 3,
         ["min"] = 1,
         ["max"] = 10,
@@ -542,8 +555,25 @@ function AchievementsUtils:GetTrackedCount()
     return 0
 end
 
+function AchievementsUtils:CanTrack()
+    if type(AddTrackedAchievement) ~= "function" then return false end
+    if type(RemoveTrackedAchievement) ~= "function" then return false end
+
+    return true
+end
+
 function AchievementsUtils:SetTracked(id, value)
     if type(id) ~= "number" then return end
+    if AchievementsUtils:CanTrack() then
+        if value then
+            AddTrackedAchievement(id)
+        else
+            RemoveTrackedAchievement(id)
+        end
+
+        return
+    end
+
     if C_ContentTracking and trackingType then
         if value then
             if C_ContentTracking.StartTracking then C_ContentTracking.StartTracking(trackingType, id) end
@@ -553,12 +583,6 @@ function AchievementsUtils:SetTracked(id, value)
             C_ContentTracking.StopTracking(trackingType, id, stopType)
         end
         return
-    end
-
-    if value then
-        if type(AddTrackedAchievement) == "function" then AddTrackedAchievement(id) end
-    elseif type(RemoveTrackedAchievement) == "function" then
-        RemoveTrackedAchievement(id)
     end
 end
 

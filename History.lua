@@ -3,6 +3,7 @@ local BUTTON_SIZE = 22
 local MENU_ROWS = 12
 local MENU_WIDTH = 240
 local ROW_HEIGHT = 18
+local ICON_SIZE = 14
 local history = {}
 local position = 0
 local navigating = false
@@ -132,10 +133,15 @@ local function CreateMenu()
         row:SetPoint("TOPLEFT", menu, "TOPLEFT", 3, -2 - (i - 1) * ROW_HEIGHT)
         row:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -3, -2 - (i - 1) * ROW_HEIGHT)
         row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+        row.icon = row:CreateTexture(nil, "ARTWORK")
+        row.icon:SetSize(ICON_SIZE, ICON_SIZE)
+        row.icon:SetPoint("LEFT", row, "LEFT", 2, 0)
+        row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        row.text:SetPoint("LEFT", row, "LEFT", 2, 0)
+        row.text:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
         row.text:SetPoint("RIGHT", row, "RIGHT", -2, 0)
         row.text:SetJustifyH("LEFT")
+        if row.text.SetWordWrap then row.text:SetWordWrap(false) end
         row:SetScript(
             "OnClick",
             function(sel)
@@ -155,6 +161,7 @@ local function FillMenu()
     if #history <= 0 then
         local row = menu.rows[1]
         row.index = nil
+        row.icon:Hide()
         row.text:SetText(AchievementsUtils:Trans("LID_HISTORYEMPTY"))
         row.text:SetTextColor(0.6, 0.6, 0.6)
         row:Show()
@@ -167,7 +174,14 @@ local function FillMenu()
             local id = history[i]
             local ach = AchievementsUtils:GetAchievement(id)
             local name = tostring(id)
-            if ach then name = ach.name end
+            row.icon:Hide()
+            if ach then
+                name = ach.name
+                row.icon:SetTexture(ach.icon)
+                if row.icon.SetDesaturated then row.icon:SetDesaturated(not ach.completed) end
+                row.icon:Show()
+            end
+
             row.index = i
             row.text:SetText(name)
             if i == position then

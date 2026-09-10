@@ -989,6 +989,7 @@ local function RowOnClick(sel, button)
 
     if sel.id == nil then return end
     if button == "RightButton" then
+        if AchievementsUtils:ShowAchievementMenu(sel.id) then return end
         AchievementsUtils:ToggleWatch(sel.id)
         Refresh()
         return
@@ -999,7 +1000,7 @@ local function RowOnClick(sel, button)
         return
     end
 
-    if IsControlKeyDown() then
+    if IsControlKeyDown() and AchievementsUtils:CanTrack() then
         AchievementsUtils:ToggleTracked(sel.id)
         UpdateRows()
         return
@@ -1018,8 +1019,13 @@ local function RowOnEnter(sel)
     if ach.reward ~= "" then GameTooltip:AddLine(ach.reward, 0.1, 1, 0.1, true) end
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine(AchievementsUtils:Trans("LID_CLICKOPEN"), 0.6, 0.6, 0.6)
-    GameTooltip:AddLine(AchievementsUtils:Trans("LID_CTRLCLICKTRACK"), 0.6, 0.6, 0.6)
-    GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKWATCH"), 0.6, 0.6, 0.6)
+    if AchievementsUtils:CanTrack() then GameTooltip:AddLine(AchievementsUtils:Trans("LID_CTRLCLICKTRACK"), 0.6, 0.6, 0.6) end
+    if AchievementsUtils:IsEnabled("CONTEXTMENU") then
+        GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKMENU"), 0.6, 0.6, 0.6)
+    else
+        GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKWATCH"), 0.6, 0.6, 0.6)
+    end
+
     if AchievementsUtils:IsEnabled("WOWHEAD") then GameTooltip:AddLine(AchievementsUtils:Trans("LID_ALTCLICKWOWHEAD"), 0.6, 0.6, 0.6) end
     GameTooltip:Show()
 end
@@ -1445,8 +1451,9 @@ local function HookAchievementButton(button)
 
     button:HookScript("OnMouseUp", function(sel, mouseButton)
         if mouseButton ~= "RightButton" then return end
-        if not AchievementsUtils:IsEnabled("TABWATCH") then return end
         if type(sel.id) ~= "number" then return end
+        if AchievementsUtils:ShowAchievementMenu(sel.id, sel) then return end
+        if not AchievementsUtils:IsEnabled("TABWATCH") then return end
         AchievementsUtils:ToggleWatch(sel.id)
         AchievementsUtils:RefreshAchievementTooltip(sel, sel.id)
     end)
