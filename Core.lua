@@ -1,6 +1,6 @@
 local _, AchievementsUtils = ...
 local ADDON = "AchievementsUtils"
-local ICON = 236373
+local ICON = 133176
 local META_CRITERIA_TYPE = 8
 local WOWHEAD_POPUP = "ACHIEVEMENTSUTILS_WOWHEAD"
 local WOWHEAD_LOCALES = {
@@ -14,6 +14,7 @@ local WOWHEAD_LOCALES = {
     ["koKR"] = "ko",
     ["zhCN"] = "cn"
 }
+
 local optionList = {}
 local optionByKey = {}
 local optionCallbacks = {}
@@ -22,16 +23,13 @@ local hasAchievementAPI = nil
 local trackingType = nil
 if Enum and Enum.ContentTrackingType then trackingType = Enum.ContentTrackingType.Achievement end
 local events = CreateFrame("Frame", "AchievementsUtilsEventFrame")
-events:SetScript(
-    "OnEvent",
-    function(sel, event, ...)
-        local handlers = eventHandlers[event]
-        if handlers == nil then return end
-        for _, callback in ipairs(handlers) do
-            callback(event, ...)
-        end
+events:SetScript("OnEvent", function(sel, event, ...)
+    local handlers = eventHandlers[event]
+    if handlers == nil then return end
+    for _, callback in ipairs(handlers) do
+        callback(event, ...)
     end
-)
+end)
 
 local options = {
     {
@@ -124,6 +122,13 @@ local options = {
         ["label"] = "LID_TABRELATED",
         ["parent"] = "TABS",
         ["default"] = true
+    },
+    {
+        ["key"] = "ACHSTYLE",
+        ["kind"] = "dropdown",
+        ["label"] = "LID_ACHSTYLE",
+        ["parent"] = "TABS",
+        ["default"] = "DEFAULT"
     },
     {
         ["key"] = "CATTOOLTIP",
@@ -353,13 +358,11 @@ end
 
 function AchievementsUtils:GetDB()
     AchievementsUtilsDB = AchievementsUtilsDB or {}
-
     return AchievementsUtilsDB
 end
 
 function AchievementsUtils:GetCharDB()
     AchievementsUtilsPCDB = AchievementsUtilsPCDB or {}
-
     return AchievementsUtilsPCDB
 end
 
@@ -367,7 +370,6 @@ function AchievementsUtils:GetOption(key)
     local info = optionByKey[key]
     local default = nil
     if info then default = info.default end
-
     return AchievementsUtils:GV(AchievementsUtils:GetDB(), key, default)
 end
 
@@ -406,14 +408,12 @@ function AchievementsUtils:IsEnabled(key)
         if AchievementsUtils:GetOption(info.key) ~= true then return false end
         info = optionByKey[info.parent]
     end
-
     return true
 end
 
 function AchievementsUtils:GetOptionLabel(key)
     local info = optionByKey[key]
     if info == nil then return key end
-
     return AchievementsUtils:TryTrans(info.label)
 end
 
@@ -428,7 +428,6 @@ end
 
 local uiCallbacks = {}
 local uiReady = false
-
 local function CheckAchievementUI()
     if uiReady then return end
     if type(AchievementFrame) ~= "table" then return end
@@ -443,7 +442,6 @@ end
 function AchievementsUtils:OnAchievementUIReady(callback)
     if uiReady then
         callback()
-
         return
     end
 
@@ -454,15 +452,11 @@ end
 function AchievementsUtils:LoadAchievementUI()
     if type(AchievementFrame) ~= "table" then AchievementsUtils:LoadAddOn("Blizzard_AchievementUI") end
     CheckAchievementUI()
-
     return type(AchievementFrame) == "table"
 end
 
 function AchievementsUtils:HasAchievementAPI()
-    if hasAchievementAPI == nil then
-        hasAchievementAPI = type(GetAchievementInfo) == "function" and type(GetCategoryList) == "function" and type(GetAchievementNumCriteria) == "function"
-    end
-
+    if hasAchievementAPI == nil then hasAchievementAPI = type(GetAchievementInfo) == "function" and type(GetCategoryList) == "function" and type(GetAchievementNumCriteria) == "function" end
     return hasAchievementAPI
 end
 
@@ -471,7 +465,6 @@ function AchievementsUtils:GetAchievement(id)
     if type(id) ~= "number" then return nil end
     local aid, name, points, completed, month, day, year, description, flags, icon, rewardText = GetAchievementInfo(id)
     if aid == nil or name == nil then return nil end
-
     return {
         ["id"] = aid,
         ["name"] = name,
@@ -490,7 +483,6 @@ end
 function AchievementsUtils:IsCompleted(id)
     local ach = AchievementsUtils:GetAchievement(id)
     if ach == nil then return false end
-
     return ach.completed
 end
 
@@ -502,7 +494,6 @@ function AchievementsUtils:GetCriteriaProgress(id)
         local _, _, completed = GetAchievementCriteriaInfo(id, i)
         if completed then done = done + 1 end
     end
-
     return done, num
 end
 
@@ -528,7 +519,6 @@ function AchievementsUtils:GetSeries(id)
             next = GetNextAchievement(next)
         end
     end
-
     return before, after
 end
 
@@ -540,7 +530,6 @@ function AchievementsUtils:IsTracked(id)
             if value == id then return true end
         end
     end
-
     return false
 end
 
@@ -552,10 +541,8 @@ function AchievementsUtils:GetTrackedCount()
 
     if type(GetTrackedAchievements) == "function" then
         local tracked = {GetTrackedAchievements()}
-
         return #tracked
     end
-
     return 0
 end
 
@@ -569,7 +556,6 @@ function AchievementsUtils:SetTracked(id, value)
             if Enum and Enum.ContentTrackingStopType then stopType = Enum.ContentTrackingStopType.Manual end
             C_ContentTracking.StopTracking(trackingType, id, stopType)
         end
-
         return
     end
 
@@ -583,14 +569,12 @@ end
 function AchievementsUtils:ToggleTracked(id)
     local tracked = not AchievementsUtils:IsTracked(id)
     AchievementsUtils:SetTracked(id, tracked)
-
     return tracked
 end
 
 function AchievementsUtils:GetWatchList()
     local db = AchievementsUtils:GetCharDB()
     if type(db["WATCH"]) ~= "table" then db["WATCH"] = {} end
-
     return db["WATCH"]
 end
 
@@ -598,7 +582,6 @@ function AchievementsUtils:IsWatched(id)
     for _, value in ipairs(AchievementsUtils:GetWatchList()) do
         if value == id then return true end
     end
-
     return false
 end
 
@@ -608,14 +591,12 @@ function AchievementsUtils:ToggleWatch(id)
         if value == id then
             tremove(list, i)
             FireOption("WATCHLIST", list)
-
             return false
         end
     end
 
     tinsert(list, id)
     FireOption("WATCHLIST", list)
-
     return true
 end
 
@@ -630,7 +611,6 @@ function AchievementsUtils:OpenAchievementUI()
             AchievementFrame:Show()
         end
     end
-
     return AchievementFrame:IsShown()
 end
 
@@ -646,7 +626,6 @@ function AchievementsUtils:GetWowheadURL(id)
     if type(id) ~= "number" then return nil end
     local prefix = WOWHEAD_LOCALES[GetLocale()]
     if prefix then return format("https://www.wowhead.com/%s/achievement=%d", prefix, id) end
-
     return format("https://www.wowhead.com/achievement=%d", id)
 end
 
@@ -674,7 +653,6 @@ local function SetupWowheadPopup()
         ["EditBoxOnEnterPressed"] = function(sel) sel:GetParent():Hide() end,
         ["EditBoxOnEscapePressed"] = function(sel) sel:GetParent():Hide() end
     }
-
     return true
 end
 
@@ -686,7 +664,6 @@ function AchievementsUtils:ShowWowheadLink(id)
     if ach then name = ach.name end
     if not SetupWowheadPopup() then
         AchievementsUtils:MSG(AchievementsUtils:Trans("LID_WOWHEADPOPUP", nil, name), url)
-
         return
     end
 
@@ -697,21 +674,13 @@ end
 function AchievementsUtils:GetPoints(id)
     local ach = AchievementsUtils:GetAchievement(id)
     if ach == nil then return 0 end
-
     return ach.points
 end
 
 function AchievementsUtils:ColorByStatus(text, completed)
     if completed then return "|cff40ff40" .. text .. "|r" end
-
     return "|cffffd200" .. text .. "|r"
 end
 
-AchievementsUtils:AddEvent(
-    "ADDON_LOADED",
-    function(event, name)
-        if name == "Blizzard_AchievementUI" then CheckAchievementUI() end
-    end
-)
-
+AchievementsUtils:AddEvent("ADDON_LOADED", function(event, name) if name == "Blizzard_AchievementUI" then CheckAchievementUI() end end)
 AchievementsUtils:AddEvent("PLAYER_LOGIN", function() CheckAchievementUI() end)

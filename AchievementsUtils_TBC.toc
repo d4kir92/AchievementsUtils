@@ -1,6 +1,6 @@
 ## Interface: 20506
 ## Version: 0.1.0
-## Title: AchievementsUtils |T236373:16:16:0:0|t by |cff55d2ffD4KiR |T132115:16:16:0:0|t
+## Title: AchievementsUtils |T133176:16:16:0:0|t by |cff55d2ffD4KiR |T132115:16:16:0:0|t
 ## Notes: Adds search, suggestions, watch list and related tabs to the achievement window, extra tooltip information and reminders.
 ## Notes-deDE: Fügt dem Erfolgsfenster Tabs für Suche, Vorschläge, Merkliste und verwandte Erfolge hinzu, dazu mehr Tooltip-Infos und Erinnerungen.
 ## Notes-esES: Añade pestañas de búsqueda, sugerencias, lista y logros relacionados a la ventana de logros, más información en los tooltips y recordatorios.
@@ -29,7 +29,7 @@
 ## SavedVariablesPerCharacter: AchievementsUtilsPCDB
 ## X-Curse-Project-ID: 1689580
 ## X-Wago-ID: rN4k5dGD
-## IconTexture: 236373
+## IconTexture: 133176
 
 libs\D4Lib\D4Lib.xml
 

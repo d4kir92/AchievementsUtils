@@ -24,6 +24,43 @@ local PANEL_TOP = 0.5
 local PANEL_BOTTOM = 1
 local COLLAPSED_ICON = "Interface\\Buttons\\UI-PlusButton-Up"
 local EXPANDED_ICON = "Interface\\Buttons\\UI-MinusButton-Up"
+local PLAQUE_HEIGHT = 84
+local PLAQUE_TEXTUREHEIGHT = 256
+local PLAQUE_PARCHMENT = "Interface\\AchievementFrame\\UI-Achievement-Parchment-Horizontal"
+local PLAQUE_PARCHMENT_GRAY = "Interface\\AchievementFrame\\UI-Achievement-Parchment-Horizontal-Desaturated"
+local PLAQUE_BORDERS = "Interface\\AchievementFrame\\UI-Achievement-Borders"
+local PLAQUE_SHIELDS = "Interface\\AchievementFrame\\UI-Achievement-Shields"
+local PLAQUE_SHIELDS_NOPOINTS = "Interface\\AchievementFrame\\UI-Achievement-Shields-NoPoints"
+local PLAQUE_ICONFRAME = "Interface\\AchievementFrame\\UI-Achievement-IconFrame"
+local PLAQUE_REWARDBG = "Interface\\AchievementFrame\\UI-Achievement-Reward-Background"
+local PLAQUE_TITLE_SAT = {0, 0.9765625, 0.66015625, 0.73828125}
+local PLAQUE_TITLE_DESAT = {0, 1, 0.91796875, 0.99609375}
+local PLAQUE_LABELWIDTH = 320
+local PLAQUE_ICONX = 38
+local PLAQUE_ICONY = -39
+local PLAQUE_CONTENTLEFT = 80
+local PLAQUE_CONTENTRIGHT = -80
+local PLAQUE_BACKDROP = {
+    ["edgeFile"] = "Interface\\Tooltips\\UI-Tooltip-Border",
+    ["edgeSize"] = 16,
+    ["insets"] = {
+        ["left"] = 5,
+        ["right"] = 5,
+        ["top"] = 5,
+        ["bottom"] = 5
+    }
+}
+
+local styleChoices = {
+    {
+        ["value"] = "DEFAULT",
+        ["label"] = "LID_ACHSTYLEDEFAULT"
+    },
+    {
+        ["value"] = "COMPACT",
+        ["label"] = "LID_ACHSTYLECOMPACT"
+    },
+}
 local tabDefs = {
     {
         ["key"] = "TABSEARCH",
@@ -63,15 +100,53 @@ local lastSubZone = nil
 local selectedAchievement = nil
 local searchPending = false
 local restored = false
-local function CountVisibleRows()
+function AchievementsUtils:GetAchStyleChoices()
+    return styleChoices
+end
+
+local function IsPlaqueStyle()
+    return AchievementsUtils:GetOption("ACHSTYLE") ~= "COMPACT"
+end
+
+local function ItemHeight(item)
+    if item == nil then return ROW_HEIGHT end
+    if item.id and IsPlaqueStyle() then return PLAQUE_HEIGHT end
+
+    return ROW_HEIGHT
+end
+
+local function GetListHeight()
     if panel == nil then return 0 end
     local height = panel:GetHeight()
-    if height == nil or height <= 0 then return 10 end
-    height = height - HEADER_HEIGHT - FOOTER_HEIGHT
-    local count = math.floor(height / ROW_HEIGHT)
-    if count < 1 then count = 1 end
-    if count > MAX_ROWS then count = MAX_ROWS end
+    if height == nil or height <= 0 then return ROW_HEIGHT * 10 end
+
+    return height - HEADER_HEIGHT - FOOTER_HEIGHT
+end
+
+local function CountFrom(startIndex, step)
+    local available = GetListHeight()
+    local used = 0
+    local count = 0
+    local index = startIndex
+    while count < MAX_ROWS do
+        local item = visibleItems[index]
+        if item == nil then break end
+        local height = ItemHeight(item)
+        if used + height > available then break end
+        used = used + height
+        count = count + 1
+        index = index + step
+    end
+
+    if count < 1 and #visibleItems > 0 then count = 1 end
+
     return count
+end
+
+local function CountVisibleRows()
+    if panel == nil then return 0 end
+
+    return CountFrom(offset + 1, 1)
 end
 
 local function AddItem(id, seen)
@@ -405,13 +480,209 @@ local function UpdateStatus()
     statusText:SetText(text)
 end
 
+local function PickFont(name, fallback)
+    if _G[name] then return name end
+
+    return fallback
+end
+
+local function EnsurePlaque(row)
+    if row.plaqueParts then return end
+    row.bg = row:CreateTexture(nil, "BACKGROUND")
+    row.bg:SetPoint("TOPLEFT", row, "TOPLEFT", 3, -3)
+    row.bg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -3, 3)
+    row.titleBar = row:CreateTexture(nil, "BORDER")
+    row.titleBar:SetTexture(PLAQUE_BORDERS)
+    row.titleBar:SetHeight(24)
+    row.titleBar:SetPoint("TOPLEFT", row, "TOPLEFT", 5, -5)
+    row.titleBar:SetPoint("TOPRIGHT", row, "TOPRIGHT", -5, -5)
+    row.glow = row:CreateTexture(nil, "BORDER")
+    row.glow:SetTexture(PLAQUE_BORDERS)
+    row.glow:SetTexCoord(0, 1, 0.00390625, 0.25390625)
+    row.glow:SetPoint("TOPLEFT", row.titleBar, "BOTTOMLEFT", 0, 4)
+    row.glow:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -5, 4)
+    row.rewardBg = row:CreateTexture(nil, "BORDER")
+    row.rewardBg:SetTexture(PLAQUE_REWARDBG)
+    row.rewardBg:SetTexCoord(0, 0.69, 0, 0.75)
+    row.rewardBg:SetHeight(24)
+    row.rewardBg:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 5, 4)
+    row.rewardBg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -5, 4)
+    row.iconTexture = row:CreateTexture(nil, "ARTWORK")
+    row.iconTexture:SetDrawLayer("ARTWORK", 1)
+    row.iconTexture:SetSize(50, 50)
+    row.iconTexture:SetPoint("CENTER", row, "TOPLEFT", PLAQUE_ICONX, PLAQUE_ICONY + 3)
+    row.iconBorder = row:CreateTexture(nil, "ARTWORK")
+    row.iconBorder:SetDrawLayer("ARTWORK", 2)
+    row.iconBorder:SetTexture(PLAQUE_ICONFRAME)
+    row.iconBorder:SetTexCoord(0, 0.5625, 0, 0.5625)
+    row.iconBorder:SetSize(72, 72)
+    row.iconBorder:SetPoint("CENTER", row, "TOPLEFT", PLAQUE_ICONX - 1, PLAQUE_ICONY + 2)
+    row.shieldIcon = row:CreateTexture(nil, "ARTWORK")
+    row.shieldIcon:SetDrawLayer("ARTWORK", 2)
+    row.shieldIcon:SetSize(66, 64)
+    row.shieldIcon:SetPoint("TOPRIGHT", row, "TOPRIGHT", -6, -6)
+    row.label = row:CreateFontString(nil, "OVERLAY", PickFont("GameFontHighlightMedium", "GameFontHighlight"))
+    row.label:SetHeight(20)
+    row.label:SetWidth(PLAQUE_LABELWIDTH)
+    row.label:SetPoint("TOP", row.titleBar, "TOP", 0, 0)
+    row.label:SetJustifyH("CENTER")
+    if row.label.SetWordWrap then row.label:SetWordWrap(false) end
+    row.mark = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.mark:SetPoint("LEFT", row.titleBar, "LEFT", 8, 0)
+    row.mark:SetJustifyH("LEFT")
+    row.desc = row:CreateFontString(nil, "OVERLAY", PickFont("AchievementDescriptionFont", "GameFontHighlightSmall"))
+    row.desc:SetPoint("TOPLEFT", row, "TOPLEFT", PLAQUE_CONTENTLEFT, -30)
+    row.desc:SetPoint("TOPRIGHT", row, "TOPRIGHT", PLAQUE_CONTENTRIGHT, -30)
+    row.desc:SetHeight(34)
+    row.desc:SetJustifyH("CENTER")
+    row.desc:SetJustifyV("TOP")
+    if row.desc.SetMaxLines then row.desc:SetMaxLines(3) end
+    row.points = row:CreateFontString(nil, "OVERLAY", PickFont("AchievementPointsFont", "GameFontNormalLarge"))
+    row.points:SetSize(42, 16)
+    row.points:SetPoint("TOPRIGHT", row, "TOPRIGHT", -19, -26)
+    row.date = row:CreateFontString(nil, "OVERLAY", PickFont("AchievementDateFont", "GameFontNormalSmall"))
+    row.date:SetSize(100, 14)
+    row.date:SetPoint("TOP", row, "TOPRIGHT", -40, -58)
+    row.date:SetJustifyH("CENTER")
+    row.rewardText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.rewardText:SetHeight(20)
+    row.rewardText:SetPoint("TOPLEFT", row.rewardBg, "TOPLEFT", 10, 1)
+    row.rewardText:SetPoint("TOPRIGHT", row.rewardBg, "TOPRIGHT", -10, 1)
+    row.rewardText:SetJustifyH("CENTER")
+    if row.rewardText.SetWordWrap then row.rewardText:SetWordWrap(false) end
+    row.plaqueParts = {row.bg, row.titleBar, row.glow, row.rewardBg, row.iconTexture, row.iconBorder, row.shieldIcon, row.label, row.mark, row.desc, row.points, row.date, row.rewardText}
+end
+
+local function HidePlaque(row)
+    if row.plaqueParts == nil then return end
+    for _, part in ipairs(row.plaqueParts) do
+        part:Hide()
+    end
+
+    if row.SetBackdrop then row:SetBackdrop(nil) end
+end
+
+local function SetPlaqueBorder(row, completed)
+    if row.SetBackdrop == nil then return end
+    row:SetBackdrop(PLAQUE_BACKDROP)
+    if not completed then
+        row:SetBackdropBorderColor(0.5, 0.5, 0.5)
+
+        return
+    end
+
+    if ACHIEVEMENT_RED_BORDER_COLOR and ACHIEVEMENT_RED_BORDER_COLOR.GetRGB then
+        row:SetBackdropBorderColor(ACHIEVEMENT_RED_BORDER_COLOR:GetRGB())
+
+        return
+    end
+
+    row:SetBackdropBorderColor(0.7, 0.15, 0.05)
+end
+
+local function ShowPlaque(row, ach)
+    EnsurePlaque(row)
+    for _, part in ipairs(row.plaqueParts) do
+        part:Show()
+    end
+
+    local completed = ach.completed
+    row.bg:SetTexCoord(0, 1, 1 - (PLAQUE_HEIGHT / PLAQUE_TEXTUREHEIGHT), 1)
+    local title = PLAQUE_TITLE_DESAT
+    if completed then
+        row.bg:SetTexture(PLAQUE_PARCHMENT)
+        title = PLAQUE_TITLE_SAT
+        row.glow:SetVertexColor(1, 1, 1)
+        row.label:SetTextColor(1, 1, 1)
+        row.desc:SetTextColor(0, 0, 0, 1)
+        row.desc:SetShadowOffset(0, 0)
+        row.iconBorder:SetVertexColor(1, 1, 1)
+        row.iconTexture:SetVertexColor(1, 1, 1)
+        row.points:SetTextColor(1, 1, 1)
+    else
+        row.bg:SetTexture(PLAQUE_PARCHMENT_GRAY)
+        row.glow:SetVertexColor(0.22, 0.17, 0.13)
+        row.label:SetTextColor(0.65, 0.65, 0.65)
+        row.desc:SetTextColor(1, 1, 1, 1)
+        row.desc:SetShadowOffset(1, -1)
+        row.iconBorder:SetVertexColor(0.75, 0.75, 0.75)
+        row.iconTexture:SetVertexColor(0.55, 0.55, 0.55)
+        row.points:SetTextColor(0.65, 0.65, 0.65)
+    end
+
+    row.titleBar:SetTexCoord(title[1], title[2], title[3], title[4])
+    row.titleBar:SetVertexColor(1, 1, 1, 0.8)
+    row.label:SetText(ach.name)
+    row.desc:SetText(ach.description)
+    row.iconTexture:SetTexture(ach.icon)
+    if ach.points > 0 then
+        row.shieldIcon:SetTexture(PLAQUE_SHIELDS)
+        row.points:SetText(ach.points)
+    else
+        row.shieldIcon:SetTexture(PLAQUE_SHIELDS_NOPOINTS)
+        row.points:SetText("")
+    end
+
+    if completed then
+        row.shieldIcon:SetTexCoord(0, 0.5, 0, 0.5)
+    else
+        row.shieldIcon:SetTexCoord(0.5, 1, 0, 0.5)
+    end
+
+    local mark = ""
+    if AchievementsUtils:IsWatched(ach.id) then mark = "|cff55d2ff*|r " end
+    if AchievementsUtils:IsTracked(ach.id) then mark = mark .. "|cff40ff40>|r" end
+    row.mark:SetText(mark)
+    if completed and ach.day and ach.month and ach.year and SHORTDATE then
+        row.date:SetText(format(SHORTDATE, ach.day, ach.month, ach.year))
+        row.date:SetTextColor(1, 0.82, 0)
+    else
+        local done, total = AchievementsUtils:GetCriteriaProgress(ach.id)
+        if not completed and total > 1 then
+            row.date:SetText(format("%d/%d", done, total))
+            row.date:SetTextColor(0.65, 0.65, 0.65)
+        else
+            row.date:Hide()
+        end
+    end
+
+    if ach.reward ~= "" then
+        row.rewardText:SetText(ach.reward)
+        if completed then
+            row.rewardBg:SetVertexColor(1, 1, 1)
+            row.rewardText:SetTextColor(1, 0.82, 0)
+        else
+            row.rewardBg:SetVertexColor(0.35, 0.35, 0.35)
+            row.rewardText:SetTextColor(0.8, 0.8, 0.8)
+        end
+    else
+        row.rewardBg:Hide()
+        row.rewardText:Hide()
+    end
+
+    SetPlaqueBorder(row, completed)
+end
+
+local function AnchorRow(row, index)
+    row:ClearAllPoints()
+    if index <= 1 then
+        row:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -HEADER_HEIGHT)
+        row:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -HEADER_HEIGHT)
+
+        return
+    end
+
+    row:SetPoint("TOPLEFT", rows[index - 1], "BOTTOMLEFT", 0, 0)
+    row:SetPoint("TOPRIGHT", rows[index - 1], "BOTTOMRIGHT", 0, 0)
+end
+
 local function UpdateRows()
     if panel == nil then return end
-    local visible = CountVisibleRows()
-    local maxOffset = #visibleItems - visible
+    local maxOffset = #visibleItems - CountFrom(#visibleItems, -1)
     if maxOffset < 0 then maxOffset = 0 end
     if offset > maxOffset then offset = maxOffset end
     if offset < 0 then offset = 0 end
+    local visible = CountVisibleRows()
     for i = 1, MAX_ROWS do
         local row = rows[i]
         if row and i > visible then row:Hide() end
@@ -424,6 +695,8 @@ local function UpdateRows()
         if item == nil then
             row:Hide()
         else
+            row:SetHeight(ItemHeight(item))
+            AnchorRow(row, i)
             row:Show()
             row.id = nil
             row.headerKey = nil
@@ -435,6 +708,8 @@ local function UpdateRows()
             row.icon:SetPoint("LEFT", row, "LEFT", INDENT_BASE + (level - 1) * INDENT_STEP, 0)
             row.right:SetText("")
             row.name:SetFontObject("GameFontNormal")
+            row.name:Show()
+            HidePlaque(row)
             if item.header then
                 if level <= 1 then row.name:SetFontObject("GameFontNormalLarge") end
                 row.name:SetText("|cffffd200" .. item.header .. "|r")
@@ -461,6 +736,11 @@ local function UpdateRows()
                 if ach == nil then
                     row.name:SetText("|cff999999" .. tostring(item.id) .. "|r")
                     row:EnableMouse(false)
+                elseif IsPlaqueStyle() then
+                    row.id = item.id
+                    row:EnableMouse(true)
+                    row.name:Hide()
+                    ShowPlaque(row, ach)
                 else
                     row.id = item.id
                     row:EnableMouse(true)
@@ -631,7 +911,9 @@ local function RowOnLeave()
 end
 
 local function CreateRow(parentFrame, i)
-    local row = CreateFrame("Button", "AchievementsUtilsRow" .. i, parentFrame)
+    local template = nil
+    if AchievementsUtils:CheckTemplates("BackdropTemplate") then template = "BackdropTemplate" end
+    local row = CreateFrame("Button", "AchievementsUtilsRow" .. i, parentFrame, template)
     row:SetHeight(ROW_HEIGHT)
     row:SetPoint("TOPLEFT", parentFrame, "TOPLEFT", 4, -HEADER_HEIGHT - (i - 1) * ROW_HEIGHT)
     row:SetPoint("TOPRIGHT", parentFrame, "TOPRIGHT", -4, -HEADER_HEIGHT - (i - 1) * ROW_HEIGHT)
@@ -1022,6 +1304,12 @@ AchievementsUtils:OnOptionChanged("TABS", function(value)
 
     if not AchievementsUtils:LoadAchievementUI() then return end
     InstallTabs()
+end)
+
+AchievementsUtils:OnOptionChanged("ACHSTYLE", function()
+    if activeTab == nil then return end
+    offset = 0
+    UpdateRows()
 end)
 
 AchievementsUtils:OnOptionChanged("WATCHLIST", function()
