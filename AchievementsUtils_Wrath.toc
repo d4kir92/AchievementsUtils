@@ -13,17 +13,17 @@
 ## Notes-zhCN: 为成就窗口添加搜索、推荐、关注和相关成就标签页，并提供更多提示信息与提醒。
 ## Notes-zhTW: 為成就視窗加入搜尋、推薦、關注與相關成就分頁，並提供更多提示資訊與提醒。
 ## Author: D4KiR
-## Category: Achievements
-## Category-deDE: Erfolge
-## Category-esES: Logros
-## Category-esMX: Logros
-## Category-frFR: Hauts faits
-## Category-itIT: Imprese
-## Category-koKR: 업적
-## Category-ptBR: Conquistas
-## Category-ruRU: Достижения
-## Category-zhCN: 成就
-## Category-zhTW: 成就
+## Category: Collections
+## Category-deDE: Kriegsmeutesammlungen
+## Category-esES: Colecciones de banda guerrera
+## Category-esMX: Colecciones de tropa
+## Category-frFR: Collections du bataillon
+## Category-itIT: Collezioni della Brigata
+## Category-koKR: 수집
+## Category-ptBR: Coleções do Bando de Guerra
+## Category-ruRU: Коллекции отряда
+## Category-zhCN: 战团藏品
+## Category-zhTW: 戰隊收藏
 ## DefaultState: enabled
 ## SavedVariables: AchievementsUtilsDB
 ## SavedVariablesPerCharacter: AchievementsUtilsPCDB
