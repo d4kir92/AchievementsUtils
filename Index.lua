@@ -1,17 +1,23 @@
 local _, AchievementsUtils = ...
-local BUILD_CHUNK = 200
-local CRITERIA_CHUNK = 200
+local CACHE_VERSION = 1
+local CACHE_KEY = "INDEXCACHE"
+local BUILD_CHUNK = 300
+local CRITERIA_CHUNK = 150
+local RESTORE_CHUNK = 400
 local COMBAT_RETRY_DELAY = 1
-
-local BUILD_DELAY = 0
-local MAX_CRITERIA_MATCHES = 6
+local BUILD_DELAY = 0.025
+local STEP_BUDGET = 7
+local MAX_CRITERIA_MATCHES = 10
+local FIELD_SEPARATOR = "\30"
 local index = nil
 local build = nil
+local searchCache = nil
 
 local function NewIndex()
     return {
         ["list"] = {},
         ["byId"] = {},
+        ["byCategory"] = {},
         ["categories"] = {},
         ["requiredBy"] = {},
         ["criteriaNames"] = {},
@@ -20,6 +26,7 @@ local function NewIndex()
         ["criteriaReady"] = false,
         ["criteriaOpenReady"] = false,
         ["criteriaWanted"] = false,
+        ["metaFromCache"] = false,
         ["count"] = 0,
         ["criteriaCount"] = 0
     }
@@ -35,6 +42,54 @@ local function NeedsCriteria()
     return false
 end
 
+local function CacheKey()
+    local version, buildNr = GetBuildInfo()
+    local locale = "enUS"
+    if type(GetLocale) == "function" then locale = GetLocale() end
+
+    return format("%s-%s-%s-%d", tostring(version), tostring(buildNr), tostring(locale), CACHE_VERSION)
+end
+
+local function LoadCache()
+    local cache = AchievementsUtils:GV(AchievementsUtils:GetDB(), CACHE_KEY, nil)
+    if type(cache) ~= "table" then return nil end
+    if cache.key ~= CacheKey() then return nil end
+    if type(cache.ids) ~= "table" or type(cache.cats) ~= "table" then return nil end
+    if #cache.ids <= 0 then return nil end
+
+    return cache
+end
+
+local function SaveCache()
+    local ids = {}
+    local cats = {}
+    for i = 1, #index.list do
+        local entry = index.list[i]
+        ids[i] = entry.id
+        cats[i] = entry.category
+    end
+
+    AchievementsUtils:SV(
+        AchievementsUtils:GetDB(),
+        CACHE_KEY,
+        {
+            ["key"] = CacheKey(),
+            ["ids"] = ids,
+            ["cats"] = cats,
+            ["catNames"] = index.categories,
+            ["crit"] = index.criteriaReady == true,
+            ["meta"] = index.requiredBy,
+            ["timed"] = index.timed,
+            ["names"] = index.criteriaNames,
+            ["count"] = index.criteriaCount
+        }
+    )
+end
+
+local function ClearCache()
+    AchievementsUtils:SV(AchievementsUtils:GetDB(), CACHE_KEY, nil)
+end
+
 local function AddCriteriaName(entry, name, criteriaIndex)
     if name == nil or name == "" then return end
     local key = string.lower(name)
@@ -44,16 +99,19 @@ local function AddCriteriaName(entry, name, criteriaIndex)
         index.criteriaNames[key] = list
     end
 
-    if #list >= MAX_CRITERIA_MATCHES then return end
-    tinsert(
-        list,
-        {
-            ["id"] = entry.id,
-            ["index"] = criteriaIndex
-        }
-    )
-
+    if #list >= MAX_CRITERIA_MATCHES * 2 then return end
+    list[#list + 1] = entry.id
+    list[#list + 1] = criteriaIndex
     index.criteriaCount = index.criteriaCount + 1
+end
+
+local function Percent(done, total)
+    if total == nil or total <= 0 then return "0%" end
+    local value = math.floor((done or 0) / total * 100)
+    if value < 0 then value = 0 end
+    if value > 100 then value = 100 end
+
+    return format("%d%%", value)
 end
 
 local function Clock()
@@ -72,7 +130,6 @@ local function ScanCriteria(entry, metaType)
     local id = entry.id
     local num = GetAchievementNumCriteria(id) or 0
     if num <= 0 then return end
-    local wantNames = not entry.completed
     for i = 1, num do
         local criteriaString, criteriaType, _, _, _, _, _, assetID, _, _, _, duration = GetAchievementCriteriaInfo(id, i)
         if criteriaType == metaType and type(assetID) == "number" and assetID > 0 then
@@ -84,11 +141,11 @@ local function ScanCriteria(entry, metaType)
             end
 
             tinsert(list, id)
-        elseif wantNames then
+        else
             AddCriteriaName(entry, criteriaString, i)
         end
 
-        if wantNames and entry.timed ~= true and type(duration) == "number" and duration > 0 then
+        if entry.timed ~= true and type(duration) == "number" and duration > 0 then
             entry.timed = true
             tinsert(index.timed, id)
         end
@@ -98,11 +155,14 @@ end
 local function AddAchievement(id, categoryID, categoryName, name, points, completed, description, icon, reward)
     if index.byId[id] then return end
     if name == nil then return end
+    local lname = string.lower(name)
+    local hay = lname
+    if description ~= nil and description ~= "" then hay = lname .. FIELD_SEPARATOR .. string.lower(description) end
     local entry = {
         ["id"] = id,
         ["name"] = name,
-        ["lname"] = string.lower(name),
-        ["ldesc"] = string.lower(description or ""),
+        ["lname"] = lname,
+        ["hay"] = hay,
         ["lreward"] = string.lower(reward or ""),
         ["points"] = points or 0,
         ["icon"] = icon,
@@ -114,11 +174,19 @@ local function AddAchievement(id, categoryID, categoryName, name, points, comple
 
     index.byId[id] = entry
     tinsert(index.list, entry)
+    local bucket = index.byCategory[categoryID]
+    if bucket == nil then
+        bucket = {}
+        index.byCategory[categoryID] = bucket
+    end
+
+    tinsert(bucket, entry)
     index.count = index.count + 1
 end
 
 local function StepCategories()
     local processed = 0
+    local clock = Clock()
     while processed < BUILD_CHUNK do
         local categoryID = build.categories[build.catPos + 1]
         if categoryID == nil then return true end
@@ -138,38 +206,101 @@ local function StepCategories()
             local id, name, points, completed, _, _, _, description, _, icon, reward = GetAchievementInfo(categoryID, build.achPos)
             if type(id) == "number" then AddAchievement(id, categoryID, build.catName, name, points, completed, description, icon, reward) end
             processed = processed + 1
+            build.done = build.done + 1
+            if Expired(clock, STEP_BUDGET) then break end
         end
     end
 
     return false
+end
+
+local function StepRestore()
+    local cache = build.cache
+    local processed = 0
+    local clock = Clock()
+    while processed < RESTORE_CHUNK do
+        build.restorePos = build.restorePos + 1
+        local id = cache.ids[build.restorePos]
+        if id == nil then return true end
+        local categoryID = cache.cats[build.restorePos]
+        local _, name, points, completed, _, _, _, description, _, icon, reward = GetAchievementInfo(id)
+        if name ~= nil then AddAchievement(id, categoryID, index.categories[categoryID], name, points, completed, description, icon, reward) end
+        processed = processed + 1
+        build.done = build.restorePos
+        if Expired(clock, STEP_BUDGET) then break end
+    end
+
+    return false
+end
+
+local function FinishRestore()
+    local cache = build.cache
+    if cache.crit ~= true or type(cache.names) ~= "table" then return end
+    if type(cache.meta) == "table" then
+        index.requiredBy = cache.meta
+        for _, list in pairs(index.requiredBy) do
+            for _, parentID in ipairs(list) do
+                local entry = index.byId[parentID]
+                if entry then entry.isMeta = true end
+            end
+        end
+    end
+
+    if type(cache.timed) == "table" then
+        index.timed = cache.timed
+        for _, id in ipairs(index.timed) do
+            local entry = index.byId[id]
+            if entry then entry.timed = true end
+        end
+    end
+
+    index.criteriaNames = cache.names
+    index.criteriaCount = cache.count or 0
+    index.criteriaReady = true
+    index.criteriaOpenReady = true
+    index.metaFromCache = true
 end
 
 local function StepCriteria()
     local metaType = AchievementsUtils:GetMetaCriteriaType()
     local processed = 0
+    local clock = Clock()
     while processed < CRITERIA_CHUNK do
         build.critPos = build.critPos + 1
         local entry = index.list[build.critPos]
         if entry == nil then
+            index.criteriaOpenReady = true
             if build.critPass >= 2 then return true end
             build.critPass = 2
             build.critPos = 0
-            index.criteriaOpenReady = true
         elseif entry.completed == (build.critPass == 2) then
             ScanCriteria(entry, metaType)
             processed = processed + 1
+            if Expired(clock, STEP_BUDGET) then break end
         end
     end
 
     return false
 end
 
-local function Tick()
+local Tick = nil
+local function Schedule(delay)
+    local current = build
+    C_Timer.After(
+        delay,
+        function()
+            if build ~= current or build == nil then return end
+            Tick()
+        end
+    )
+end
+
+Tick = function()
     if build == nil then return end
     if type(InCombatLockdown) == "function" and InCombatLockdown() then
         build.combat = true
         if build.pausedAt == nil and type(GetTime) == "function" then build.pausedAt = GetTime() end
-        C_Timer.After(COMBAT_RETRY_DELAY, Tick)
+        Schedule(COMBAT_RETRY_DELAY)
 
         return
     end
@@ -181,8 +312,19 @@ local function Tick()
     end
 
     if not index.ready then
-        if StepCategories() then index.ready = true end
-        C_Timer.After(BUILD_DELAY, Tick)
+        local done = false
+        if build.cache then
+            done = StepRestore()
+        else
+            done = StepCategories()
+        end
+
+        if done then
+            index.ready = true
+            if build.cache then FinishRestore() end
+        end
+
+        Schedule(BUILD_DELAY)
 
         return
     end
@@ -191,52 +333,78 @@ local function Tick()
         if StepCriteria() then
             index.criteriaReady = true
         else
-            C_Timer.After(BUILD_DELAY, Tick)
+            Schedule(BUILD_DELAY)
 
             return
         end
     end
 
+    if not index.metaFromCache then SaveCache() end
     if build.started and type(GetTime) == "function" then index.duration = GetTime() - build.started end
     build = nil
 end
 
+local function CountAchievements(categories)
+    local total = 0
+    for _, categoryID in ipairs(categories) do
+        if type(categoryID) == "number" then total = total + (GetCategoryNumAchievements(categoryID) or 0) end
+    end
+
+    return total
+end
+
+local function NewBuild(cache)
+    return {
+        ["categories"] = {},
+        ["cache"] = cache,
+        ["restorePos"] = 0,
+        ["catPos"] = 0,
+        ["critPos"] = 0,
+        ["critPass"] = 1,
+        ["done"] = 0,
+        ["total"] = 0,
+        ["started"] = GetTime and GetTime() or nil
+    }
+end
+
 function AchievementsUtils:BuildIndex(force)
     if not AchievementsUtils:HasAchievementAPI() then return false end
-    if build ~= nil and not force then return false end
-    if index ~= nil and not force then
+    if force then
+        ClearCache()
+        index = nil
+        build = nil
+    end
+
+    if index ~= nil then
         if index.criteriaWanted or not NeedsCriteria() then return false end
         index.criteriaWanted = true
-        if index.ready then
-            build = build or {
-                ["categories"] = {},
-                ["catPos"] = 0,
-                ["critPos"] = 0,
-                ["critPass"] = 1,
-                ["started"] = GetTime and GetTime() or nil
-            }
-
-            C_Timer.After(BUILD_DELAY, Tick)
-
-            return true
+        if index.criteriaReady then return true end
+        if build == nil and index.ready then
+            build = NewBuild(nil)
+            Schedule(BUILD_DELAY)
         end
 
         return true
     end
 
-    local categories = GetCategoryList()
-    if type(categories) ~= "table" then categories = {} end
+    if build ~= nil then return false end
+    searchCache = nil
     index = NewIndex()
     index.criteriaWanted = NeedsCriteria()
-    build = {
-        ["categories"] = categories,
-        ["catPos"] = 0,
-        ["critPos"] = 0,
-        ["critPass"] = 1,
-        ["started"] = GetTime and GetTime() or nil
-    }
+    local cache = LoadCache()
+    if cache then
+        index.categories = cache.catNames or {}
+        build = NewBuild(cache)
+        build.total = #cache.ids
+    else
+        local categories = GetCategoryList()
+        if type(categories) ~= "table" then categories = {} end
+        build = NewBuild(nil)
+        build.categories = categories
+        build.total = CountAchievements(categories)
+    end
 
-    C_Timer.After(BUILD_DELAY, Tick)
+    Schedule(BUILD_DELAY)
 
     return true
 end
@@ -269,15 +437,21 @@ function AchievementsUtils:GetIndexStatus()
     if not AchievementsUtils:HasAchievementAPI() then return AchievementsUtils:Trans("LID_INDEXUNAVAILABLE") end
     if index == nil then return AchievementsUtils:Trans("LID_INDEXIDLE") end
     if build and build.combat then return AchievementsUtils:Trans("LID_INDEXCOMBAT") end
-    if not index.ready then return AchievementsUtils:Trans("LID_INDEXBUILDING", nil, index.count) end
+    if not index.ready then
+        if build == nil or build.total == nil or build.total <= 0 then return AchievementsUtils:Trans("LID_INDEXBUILDING", nil, index.count) end
+
+        return AchievementsUtils:Trans("LID_INDEXBUILDING", nil, Percent(build.done, build.total))
+    end
+
     if index.criteriaWanted and not index.criteriaReady then
-        local percent = 0
+        local done = 0
+        local total = 0
         if build and index.count > 0 then
-            local done = ((build.critPass or 1) - 1) * index.count + (build.critPos or 0)
-            percent = math.floor(done / (index.count * 2) * 100)
+            done = ((build.critPass or 1) - 1) * index.count + (build.critPos or 0)
+            total = index.count * 2
         end
 
-        return AchievementsUtils:Trans("LID_INDEXCRITERIA", nil, format("%d%%", percent))
+        return AchievementsUtils:Trans("LID_INDEXCRITERIA", nil, Percent(done, total))
     end
 
     if index.duration then return AchievementsUtils:Trans("LID_INDEXREADY", nil, format("%d, %.1fs", index.count, index.duration)) end
@@ -292,7 +466,7 @@ function AchievementsUtils:GetEntry(id)
 end
 
 function AchievementsUtils:GetRequiredBy(id)
-    if index == nil or not index.criteriaReady then return nil end
+    if index == nil or not index.ready then return nil end
 
     return index.requiredBy[id]
 end
@@ -326,30 +500,51 @@ local function SortOpen(a, b)
     return a.name < b.name
 end
 
+function AchievementsUtils:EntryMatches(entry, needle)
+    if string.find(entry.hay, needle, 1, true) then return true end
+
+    return false
+end
+
 function AchievementsUtils:SearchAchievements(text, maxResults)
     local results = {}
     if index == nil or not index.ready then return results end
     text = string.lower(strtrim(text or ""))
-    if text == "" then return results end
-    maxResults = maxResults or 300
-    local asNumber = tonumber(text)
-    for _, entry in ipairs(index.list) do
-        local match = false
-        if asNumber and entry.id == asNumber then
-            match = true
-        elseif string.find(entry.lname, text, 1, true) then
-            match = true
-        elseif string.find(entry.ldesc, text, 1, true) then
-            match = true
-        elseif entry.lreward ~= "" and string.find(entry.lreward, text, 1, true) then
-            match = true
-        end
+    if text == "" then
+        searchCache = nil
 
-        if match then
+        return results
+    end
+
+    maxResults = maxResults or 300
+    local source = index.list
+    local cache = searchCache
+    if cache and cache.max == maxResults and not cache.capped then
+        local len = string.len(cache.text)
+        if string.len(text) > len and string.sub(text, 1, len) == cache.text then source = cache.list end
+    end
+
+    local exact = nil
+    local asNumber = tonumber(text)
+    if asNumber then
+        exact = index.byId[asNumber]
+        if exact then tinsert(results, exact) end
+    end
+
+    for i = 1, #source do
+        local entry = source[i]
+        if entry ~= exact and (string.find(entry.hay, text, 1, true) or (entry.lreward ~= "" and string.find(entry.lreward, text, 1, true))) then
             tinsert(results, entry)
             if #results >= maxResults then break end
         end
     end
+
+    searchCache = {
+        ["text"] = text,
+        ["list"] = results,
+        ["max"] = maxResults,
+        ["capped"] = #results >= maxResults
+    }
 
     table.sort(results, SortResults)
 
@@ -425,8 +620,10 @@ function AchievementsUtils:FindCategoryAchievements(categoryID, onlyOpen, maxRes
     local results = {}
     if index == nil or not index.ready then return results end
     maxResults = maxResults or 60
-    for _, entry in ipairs(index.list) do
-        if entry.category == categoryID and (not onlyOpen or not entry.completed) then
+    local bucket = index.byCategory[categoryID]
+    if bucket == nil then return results end
+    for _, entry in ipairs(bucket) do
+        if not onlyOpen or not entry.completed then
             tinsert(results, entry)
             if #results >= maxResults then break end
         end

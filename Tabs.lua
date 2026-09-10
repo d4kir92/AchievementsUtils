@@ -61,6 +61,7 @@ local styleChoices = {
         ["label"] = "LID_ACHSTYLECOMPACT"
     },
 }
+
 local tabDefs = {
     {
         ["key"] = "TABSEARCH",
@@ -111,7 +112,6 @@ end
 local function ItemHeight(item)
     if item == nil then return ROW_HEIGHT end
     if item.id and IsPlaqueStyle() then return PLAQUE_HEIGHT end
-
     return ROW_HEIGHT
 end
 
@@ -119,7 +119,6 @@ local function GetListHeight()
     if panel == nil then return 0 end
     local height = panel:GetHeight()
     if height == nil or height <= 0 then return ROW_HEIGHT * 10 end
-
     return height - HEADER_HEIGHT - FOOTER_HEIGHT
 end
 
@@ -139,13 +138,11 @@ local function CountFrom(startIndex, step)
     end
 
     if count < 1 and #visibleItems > 0 then count = 1 end
-
     return count
 end
 
 local function CountVisibleRows()
     if panel == nil then return 0 end
-
     return CountFrom(offset + 1, 1)
 end
 
@@ -267,7 +264,6 @@ local function IsHolidayRunning(info, now)
     if now.hour == nil then return true end
     if sequence == "START" and type(info.startTime) == "table" and info.startTime.hour and now.hour < info.startTime.hour then return false end
     if sequence == "END" and type(info.endTime) == "table" and info.endTime.hour and now.hour >= info.endTime.hour then return false end
-
     return true
 end
 
@@ -306,8 +302,7 @@ end
 
 local function MatchesText(entry, needles)
     for _, needle in ipairs(needles) do
-        if string.find(entry.lname, needle, 1, true) then return true end
-        if string.find(entry.ldesc, needle, 1, true) then return true end
+        if AchievementsUtils:EntryMatches(entry, needle) then return true end
     end
     return false
 end
@@ -482,7 +477,6 @@ end
 
 local function PickFont(name, fallback)
     if _G[name] then return name end
-
     return fallback
 end
 
@@ -567,13 +561,11 @@ local function SetPlaqueBorder(row, completed)
     row:SetBackdrop(PLAQUE_BACKDROP)
     if not completed then
         row:SetBackdropBorderColor(0.5, 0.5, 0.5)
-
         return
     end
 
     if ACHIEVEMENT_RED_BORDER_COLOR and ACHIEVEMENT_RED_BORDER_COLOR.GetRGB then
         row:SetBackdropBorderColor(ACHIEVEMENT_RED_BORDER_COLOR:GetRGB())
-
         return
     end
 
@@ -668,7 +660,6 @@ local function AnchorRow(row, index)
     if index <= 1 then
         row:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -HEADER_HEIGHT)
         row:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -HEADER_HEIGHT)
-
         return
     end
 
@@ -812,14 +803,12 @@ local function PollIndex()
     if not indexPending then return end
     if panel == nil or not panel:IsShown() or activeTab == nil then
         indexPending = false
-
         return
     end
 
     if not AchievementsUtils:IsIndexBuilding() then
         indexPending = false
         AchievementsUtils:RefreshExtraTab()
-
         return
     end
 
@@ -974,12 +963,12 @@ local function CreatePanel()
     panel = CreateFrame("Frame", "AchievementsUtilsPanel", AchievementFrame)
     local top = _G["AchievementFrameCategories"]
     if top then
-        panel:SetPoint("TOPLEFT", top, "TOPLEFT", -4, 6)
+        panel:SetPoint("TOPLEFT", top, "TOPLEFT", 0, 0)
     else
         panel:SetPoint("TOPLEFT", AchievementFrame, "TOPLEFT", 20, -70)
     end
 
-    panel:SetPoint("BOTTOMRIGHT", AchievementFrame, "BOTTOMRIGHT", -22, 26)
+    panel:SetPoint("BOTTOMRIGHT", AchievementFrame, "BOTTOMRIGHT", -20, 20)
     RaisePanel()
     panel:EnableMouse(true)
     panel:EnableMouseWheel(true)

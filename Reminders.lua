@@ -49,11 +49,13 @@ local function AddLines(tooltip, name)
     if list == nil then return false end
     local shown = 0
     local needed = false
-    for _, ref in ipairs(list) do
+    for i = 1, #list, 2 do
         if shown >= MAX_REMINDER_LINES then break end
-        local ach = AchievementsUtils:GetAchievement(ref.id)
+        local achID = list[i]
+        local criteriaIndex = list[i + 1]
+        local ach = AchievementsUtils:GetAchievement(achID)
         if ach and not ach.completed then
-            local _, _, completed = GetAchievementCriteriaInfo(ref.id, ref.index)
+            local _, _, completed = GetAchievementCriteriaInfo(achID, criteriaIndex)
             if completed then
                 if AchievementsUtils:IsEnabled("REMINDERDONE") then
                     tooltip:AddDoubleLine(ach.name, AchievementsUtils:Trans("LID_ALREADYDONE"), 0.4, 1, 0.4, 0.4, 1, 0.4)
