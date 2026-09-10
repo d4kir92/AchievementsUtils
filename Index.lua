@@ -18,6 +18,7 @@ local function NewIndex()
         ["timed"] = {},
         ["ready"] = false,
         ["criteriaReady"] = false,
+        ["criteriaOpenReady"] = false,
         ["criteriaWanted"] = false,
         ["count"] = 0,
         ["criteriaCount"] = 0
@@ -149,9 +150,15 @@ local function StepCriteria()
     while processed < CRITERIA_CHUNK do
         build.critPos = build.critPos + 1
         local entry = index.list[build.critPos]
-        if entry == nil then return true end
-        ScanCriteria(entry, metaType)
-        processed = processed + 1
+        if entry == nil then
+            if build.critPass >= 2 then return true end
+            build.critPass = 2
+            build.critPos = 0
+            index.criteriaOpenReady = true
+        elseif entry.completed == (build.critPass == 2) then
+            ScanCriteria(entry, metaType)
+            processed = processed + 1
+        end
     end
 
     return false
@@ -205,6 +212,7 @@ function AchievementsUtils:BuildIndex(force)
                 ["categories"] = {},
                 ["catPos"] = 0,
                 ["critPos"] = 0,
+                ["critPass"] = 1,
                 ["started"] = GetTime and GetTime() or nil
             }
 
@@ -224,6 +232,7 @@ function AchievementsUtils:BuildIndex(force)
         ["categories"] = categories,
         ["catPos"] = 0,
         ["critPos"] = 0,
+        ["critPass"] = 1,
         ["started"] = GetTime and GetTime() or nil
     }
 
@@ -250,16 +259,25 @@ function AchievementsUtils:IsCriteriaIndexReady()
     return index ~= nil and index.criteriaReady
 end
 
+function AchievementsUtils:IsOpenCriteriaReady()
+    if index == nil then return false end
+
+    return index.criteriaReady or index.criteriaOpenReady == true
+end
+
 function AchievementsUtils:GetIndexStatus()
     if not AchievementsUtils:HasAchievementAPI() then return AchievementsUtils:Trans("LID_INDEXUNAVAILABLE") end
     if index == nil then return AchievementsUtils:Trans("LID_INDEXIDLE") end
     if build and build.combat then return AchievementsUtils:Trans("LID_INDEXCOMBAT") end
     if not index.ready then return AchievementsUtils:Trans("LID_INDEXBUILDING", nil, index.count) end
     if index.criteriaWanted and not index.criteriaReady then
-        local pos = 0
-        if build then pos = build.critPos or 0 end
+        local percent = 0
+        if build and index.count > 0 then
+            local done = ((build.critPass or 1) - 1) * index.count + (build.critPos or 0)
+            percent = math.floor(done / (index.count * 2) * 100)
+        end
 
-        return AchievementsUtils:Trans("LID_INDEXCRITERIA", nil, format("%d/%d", pos, index.count))
+        return AchievementsUtils:Trans("LID_INDEXCRITERIA", nil, format("%d%%", percent))
     end
 
     if index.duration then return AchievementsUtils:Trans("LID_INDEXREADY", nil, format("%d, %.1fs", index.count, index.duration)) end

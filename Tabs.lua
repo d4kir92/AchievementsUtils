@@ -546,6 +546,9 @@ local function PollIndex()
     if indexStage < 1 and AchievementsUtils:IsIndexReady() then
         indexStage = 1
         AchievementsUtils:RefreshExtraTab()
+    elseif indexStage < 2 and AchievementsUtils:IsOpenCriteriaReady() then
+        indexStage = 2
+        AchievementsUtils:RefreshExtraTab()
     else
         UpdateIndexInfo()
     end
