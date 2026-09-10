@@ -5,6 +5,12 @@ local FOOTER_HEIGHT = 18
 local MAX_ROWS = 40
 local INDENT_BASE = 2
 local INDENT_STEP = 14
+local SCROLL_WIDTH = 16
+local SCROLL_MARGIN = 4
+local SCROLL_THUMB_HEIGHT = 32
+local SCROLL_MIN_THUMB = 0.05
+local SCROLL_PAN = 0.1
+local TAB_SPACING = 6
 local ZONE_REFRESH_DELAY = 0.5
 local INDEX_POLL_DELAY = 0.3
 local SECTION_MAX = 30
@@ -85,6 +91,12 @@ local panel = nil
 local blizzardHooked = false
 local searchBox = nil
 local statusText = nil
+local scrollBar = nil
+local scrollUpdating = false
+local scrollMax = 0
+local filteredItems = {}
+local searchTexts = {}
+local searchRestoring = false
 local tabs = {}
 local rows = {}
 local items = {}
@@ -114,6 +126,14 @@ local function ItemHeight(item)
     if item == nil then return ROW_HEIGHT end
     if item.id and IsPlaqueStyle() then return PLAQUE_HEIGHT end
     return ROW_HEIGHT
+end
+
+local function ItemIndent(item)
+    if item == nil then return 0 end
+    if item.id == nil or not IsPlaqueStyle() then return 0 end
+    local level = item.level or 1
+    if level <= 1 then return 0 end
+    return (level - 1) * INDENT_STEP
 end
 
 local function GetListHeight()
@@ -175,10 +195,63 @@ local function SetCollapsed(key, collapsed)
     end
 end
 
+local function UsesFilter()
+    return activeTab == "TABSUGGESTIONS" or activeTab == "TABWATCH"
+end
+
+local function GetFilterNeedle()
+    if not UsesFilter() then return "" end
+    if searchBox == nil then return "" end
+
+    return string.lower(strtrim(searchBox:GetText() or ""))
+end
+
+local function ApplyFilter()
+    wipe(filteredItems)
+    local needle = GetFilterNeedle()
+    if needle == "" then
+        for _, item in ipairs(items) do
+            tinsert(filteredItems, item)
+        end
+
+        return
+    end
+
+    local pending = {}
+    for _, item in ipairs(items) do
+        if item.header then
+            while #pending > 0 and (pending[#pending].level or 1) >= (item.level or 1) do
+                tremove(pending)
+            end
+
+            tinsert(pending, item)
+        elseif item.id then
+            local entry = AchievementsUtils:GetEntry(item.id)
+            if entry and AchievementsUtils:EntryMatches(entry, needle) then
+                for _, header in ipairs(pending) do
+                    tinsert(filteredItems, header)
+                end
+
+                wipe(pending)
+                tinsert(filteredItems, item)
+            end
+        else
+            tinsert(filteredItems, item)
+        end
+    end
+
+    if #filteredItems > 0 then return end
+    tinsert(filteredItems, {
+        ["info"] = AchievementsUtils:Trans("LID_NORESULTS"),
+        ["level"] = 1
+    })
+end
+
 local function ApplyCollapse()
+    ApplyFilter()
     wipe(visibleItems)
     local hiddenLevel = nil
-    for _, item in ipairs(items) do
+    for _, item in ipairs(filteredItems) do
         if item.header then
             local level = item.level or 1
             if hiddenLevel == nil or level <= hiddenLevel then
@@ -486,7 +559,7 @@ end
 local function UpdateStatus()
     if statusText == nil then return end
     local count = 0
-    for _, item in ipairs(items) do
+    for _, item in ipairs(filteredItems) do
         if item.id then count = count + 1 end
     end
 
@@ -676,16 +749,43 @@ local function ShowPlaque(row, ach)
     SetPlaqueBorder(row, completed)
 end
 
-local function AnchorRow(row, index)
+local function RowRightInset()
+    if scrollBar == nil or not scrollBar:IsShown() then return -4 end
+    local width = scrollBar:GetWidth() or 0
+    if width <= 0 then width = SCROLL_WIDTH end
+    return -4 - width - SCROLL_MARGIN
+end
+
+local function AnchorRow(row, indent, top)
     row:ClearAllPoints()
-    if index <= 1 then
-        row:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -HEADER_HEIGHT)
-        row:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -HEADER_HEIGHT)
+    row:SetPoint("TOPLEFT", panel, "TOPLEFT", 4 + indent, -top)
+    row:SetPoint("TOPRIGHT", panel, "TOPRIGHT", RowRightInset(), -top)
+end
+
+local function UpdateScroll(maxOffset, visible)
+    if scrollBar == nil then return end
+    scrollMax = maxOffset
+    if maxOffset <= 0 then
+        scrollBar:Hide()
         return
     end
 
-    row:SetPoint("TOPLEFT", rows[index - 1], "BOTTOMLEFT", 0, 0)
-    row:SetPoint("TOPRIGHT", rows[index - 1], "BOTTOMRIGHT", 0, 0)
+    scrollUpdating = true
+    if scrollBar.auSlider then
+        scrollBar:SetMinMaxValues(0, maxOffset)
+        scrollBar:SetValue(offset)
+    else
+        local total = #visibleItems
+        local share = 1
+        if total > 0 then share = visible / total end
+        if share < SCROLL_MIN_THUMB then share = SCROLL_MIN_THUMB end
+        if share > 0.99 then share = 0.99 end
+        scrollBar:SetVisibleExtentPercentage(share)
+        scrollBar:SetScrollPercentage(offset / maxOffset, true)
+    end
+
+    scrollUpdating = false
+    scrollBar:Show()
 end
 
 local function UpdateRows()
@@ -695,11 +795,13 @@ local function UpdateRows()
     if offset > maxOffset then offset = maxOffset end
     if offset < 0 then offset = 0 end
     local visible = CountVisibleRows()
+    UpdateScroll(maxOffset, visible)
     for i = 1, MAX_ROWS do
         local row = rows[i]
         if row and i > visible then row:Hide() end
     end
 
+    local top = HEADER_HEIGHT
     for i = 1, visible do
         local row = rows[i]
         if row == nil then break end
@@ -707,8 +809,10 @@ local function UpdateRows()
         if item == nil then
             row:Hide()
         else
-            row:SetHeight(ItemHeight(item))
-            AnchorRow(row, i)
+            local height = ItemHeight(item)
+            row:SetHeight(height)
+            AnchorRow(row, ItemIndent(item), top)
+            top = top + height
             row:Show()
             row.id = nil
             row.headerKey = nil
@@ -952,6 +1056,67 @@ local function CreateRow(parentFrame, i)
     return row
 end
 
+local function ScrollToPercent(percent)
+    if scrollUpdating then return end
+    if scrollMax <= 0 then return end
+    local target = math.floor(percent * scrollMax + 0.5)
+    if target < 0 then target = 0 end
+    if target > scrollMax then target = scrollMax end
+    if target == offset then return end
+    offset = target
+    UpdateRows()
+end
+
+local function CreateModernScrollBar()
+    if not AchievementsUtils:CheckTemplates("MinimalScrollBar") then return nil end
+    if type(ScrollBarMixin) ~= "table" then return nil end
+    local bar = CreateFrame("EventFrame", "AchievementsUtilsScrollBar", panel, "MinimalScrollBar")
+    bar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -HEADER_HEIGHT)
+    bar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4, FOOTER_HEIGHT)
+    bar:SetFrameLevel(panel:GetFrameLevel() + 10)
+    bar:Init(1, SCROLL_PAN)
+    local event = "OnScroll"
+    if ScrollBarMixin and ScrollBarMixin.Event and ScrollBarMixin.Event.OnScroll then event = ScrollBarMixin.Event.OnScroll end
+    bar:RegisterCallback(event, function(_, percent) ScrollToPercent(percent) end, panel)
+    return bar
+end
+
+local function CreateLegacyScrollBar()
+    local bar = CreateFrame("Slider", "AchievementsUtilsScrollBar", panel)
+    bar.auSlider = true
+    bar:SetWidth(SCROLL_WIDTH)
+    bar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -HEADER_HEIGHT)
+    bar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4, FOOTER_HEIGHT)
+    bar:SetOrientation("VERTICAL")
+    bar:SetValueStep(1)
+    if bar.SetObeyStepOnDrag then bar:SetObeyStepOnDrag(true) end
+    bar:SetMinMaxValues(0, 0)
+    bar:SetValue(0)
+    bar:SetFrameLevel(panel:GetFrameLevel() + 10)
+    bar.track = bar:CreateTexture(nil, "BACKGROUND")
+    bar.track:SetTexture("Interface\\Buttons\\WHITE8X8")
+    bar.track:SetVertexColor(0, 0, 0, 0.5)
+    bar.track:SetAllPoints(bar)
+    bar.thumb = bar:CreateTexture(nil, "ARTWORK")
+    bar.thumb:SetTexture("Interface\\Buttons\\WHITE8X8")
+    bar.thumb:SetVertexColor(0.6, 0.6, 0.6, 0.9)
+    bar.thumb:SetSize(SCROLL_WIDTH - 4, SCROLL_THUMB_HEIGHT)
+    bar:SetThumbTexture(bar.thumb)
+    bar:SetScript("OnValueChanged", function(sel, value)
+        if scrollUpdating then return end
+        local target = math.floor(value + 0.5)
+        if target == offset then return end
+        offset = target
+        UpdateRows()
+    end)
+
+    return bar
+end
+
+local function CreateScrollBar()
+    return CreateModernScrollBar() or CreateLegacyScrollBar()
+end
+
 local function RaisePanel()
     if panel == nil then return end
     if type(AchievementFrame) ~= "table" then return end
@@ -1013,7 +1178,9 @@ local function CreatePanel()
     searchBox:SetAutoFocus(false)
     searchBox:SetScript("OnEscapePressed", function(sel) sel:ClearFocus() end)
     searchBox:SetScript("OnEnterPressed", function(sel) sel:ClearFocus() end)
-    searchBox:SetScript("OnTextChanged", function()
+    searchBox:SetScript("OnTextChanged", function(sel)
+        if searchRestoring then return end
+        if activeTab then searchTexts[activeTab] = sel:GetText() end
         if searchPending then return end
         searchPending = true
         C_Timer.After(0.25, function()
@@ -1021,6 +1188,10 @@ local function CreatePanel()
             if activeTab == "TABSEARCH" then
                 offset = 0
                 Refresh()
+            elseif UsesFilter() then
+                offset = 0
+                ApplyCollapse()
+                UpdateRows()
             end
         end)
     end)
@@ -1029,6 +1200,8 @@ local function CreatePanel()
     statusText:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 8, 4)
     statusText:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -8, 4)
     statusText:SetJustifyH("LEFT")
+    scrollBar = CreateScrollBar()
+    scrollBar:Hide()
     for i = 1, MAX_ROWS do
         rows[i] = CreateRow(panel, i)
         rows[i]:Hide()
@@ -1110,7 +1283,10 @@ function AchievementsUtils:ShowExtraTab(key)
     offset = 0
     RaisePanel()
     panel:Show()
-    if key == "TABSEARCH" then
+    if key == "TABSEARCH" or UsesFilter() then
+        searchRestoring = true
+        searchBox:SetText(searchTexts[key] or "")
+        searchRestoring = false
         searchBox:Show()
     else
         searchBox:Hide()
@@ -1201,9 +1377,9 @@ local function LayoutTabs()
             if anchor == nil then
                 tab:SetPoint("TOPLEFT", AchievementFrame, "BOTTOMLEFT", 17, 3)
             elseif tab.auCustom or anchor.auCustom then
-                tab:SetPoint("LEFT", anchor, "RIGHT", 2, 0)
+                tab:SetPoint("LEFT", anchor, "RIGHT", TAB_SPACING, 0)
             else
-                tab:SetPoint("LEFT", anchor, "RIGHT", chainX, chainY)
+                tab:SetPoint("LEFT", anchor, "RIGHT", chainX + TAB_SPACING, chainY)
             end
 
             tab:Show()
