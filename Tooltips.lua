@@ -2,6 +2,12 @@ local _, AchievementsUtils = ...
 local MAX_PARENT_DEPTH = 8
 local CTRL_TIMEOUT = 10
 local TRACKER_DELAY = 0.5
+local BAR_HEIGHT = 14
+local BAR_INSET = 10
+local BAR_SPACING = 12
+local BAR_FILL = "Interface\\AchievementFrame\\UI-Achievement-ProgressBar-Fill"
+local BAR_FALLBACK = "Interface\\TargetingFrame\\UI-StatusBar"
+local bars = {}
 local adding = false
 local installed = false
 local lastCtrlID = nil
@@ -41,6 +47,7 @@ end
 local function AddProgressLines(lines, id, maxLines)
     local done, total = AchievementsUtils:GetCriteriaProgress(id)
     if total <= 0 then return end
+    local useBars = AchievementsUtils:IsEnabled("TTPROGRESSBAR")
     if total > 1 then
         tinsert(
             lines,
@@ -70,7 +77,31 @@ local function AddProgressLines(lines, id, maxLines)
         end
 
         local criteriaString, _, completed, quantity, reqQuantity, _, _, _, quantityString = GetAchievementCriteriaInfo(id, i)
-        if not completed then
+        if not completed and useBars and type(reqQuantity) == "number" and reqQuantity > 1 then
+            if criteriaString and criteriaString ~= "" then
+                tinsert(
+                    lines,
+                    {
+                        ["left"] = criteriaString,
+                        ["r"] = 1,
+                        ["g"] = 1,
+                        ["b"] = 1
+                    }
+                )
+            end
+
+            tinsert(
+                lines,
+                {
+                    ["bar"] = true,
+                    ["value"] = quantity or 0,
+                    ["max"] = reqQuantity,
+                    ["text"] = format("%d / %d", quantity or 0, reqQuantity)
+                }
+            )
+
+            shown = shown + 1
+        elseif not completed then
             local left = criteriaString
             if left == nil or left == "" then left = quantityString end
             local right = nil
@@ -217,6 +248,104 @@ local function BuildLines(id)
     return lines
 end
 
+local function SetBarTexture(bar)
+    bar:SetStatusBarTexture(BAR_FILL)
+    local texture = bar:GetStatusBarTexture()
+    if texture == nil then return end
+    if texture:GetTexture() then return end
+    bar:SetStatusBarTexture(BAR_FALLBACK)
+    bar:SetStatusBarColor(0.1, 0.7, 0.1)
+end
+
+local function CreateBar(tooltip)
+    local bar = CreateFrame("StatusBar", nil, tooltip)
+    bar:SetHeight(BAR_HEIGHT)
+    bar:SetFrameLevel(tooltip:GetFrameLevel() + 1)
+    bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+    bar.bg:SetPoint("TOPLEFT", bar, "TOPLEFT", -1, 1)
+    bar.bg:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 1, -1)
+    if bar.bg.SetColorTexture then
+        bar.bg:SetColorTexture(0.15, 0.15, 0.15, 0.9)
+    else
+        bar.bg:SetTexture(0.15, 0.15, 0.15, 0.9)
+    end
+
+    SetBarTexture(bar)
+    bar.text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    bar.text:SetPoint("CENTER", bar, "CENTER", 0, 0)
+    bar:Hide()
+
+    return bar
+end
+
+local function AcquireBar(tooltip)
+    local list = bars[tooltip]
+    if list == nil then
+        list = {}
+        bars[tooltip] = list
+    end
+
+    for _, bar in ipairs(list) do
+        if not bar:IsShown() then return bar end
+    end
+
+    local bar = CreateBar(tooltip)
+    tinsert(list, bar)
+
+    return bar
+end
+
+local function ReleaseBars(tooltip)
+    local list = bars[tooltip]
+    if list == nil then return end
+    for _, bar in ipairs(list) do
+        bar:Hide()
+    end
+end
+
+local function AddBar(tooltip, line)
+    local name = tooltip:GetName()
+    if name == nil then return false end
+    local sample = _G[name .. "TextLeft2"]
+    if sample == nil then return false end
+    local textHeight = sample:GetHeight()
+    if type(textHeight) ~= "number" or textHeight <= 0 then textHeight = 12 end
+    local needed = math.ceil((BAR_HEIGHT + BAR_SPACING) / (textHeight + BAR_SPACING))
+    if needed < 1 then needed = 1 end
+    local anchorLine = tooltip:NumLines() + 1
+    for _ = 1, needed do
+        tooltip:AddLine(" ")
+    end
+
+    local anchor = _G[name .. "TextLeft" .. anchorLine]
+    if anchor == nil then return false end
+    local bar = AcquireBar(tooltip)
+    bar:SetFrameLevel(tooltip:GetFrameLevel() + 1)
+    bar:ClearAllPoints()
+    bar:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, -BAR_SPACING / 2)
+    bar:SetPoint("RIGHT", tooltip, "RIGHT", -BAR_INSET, 0)
+    bar:SetMinMaxValues(0, line.max)
+    bar:SetValue(line.value)
+    bar.text:SetText(line.text)
+    bar:Show()
+
+    return true
+end
+
+local function RenderLines(tooltip, lines)
+    for _, line in ipairs(lines) do
+        local shown = false
+        if line.bar then shown = AddBar(tooltip, line) end
+        if not shown then
+            if line.right then
+                tooltip:AddDoubleLine(line.left, line.right, line.r, line.g, line.b, line.r2, line.g2, line.b2)
+            elseif line.left and line.left ~= "" then
+                tooltip:AddLine(line.left, line.r, line.g, line.b, true)
+            end
+        end
+    end
+end
+
 local function Decorate(tooltip, id)
     if adding then return end
     if tooltip == nil or id == nil then return end
@@ -226,15 +355,9 @@ local function Decorate(tooltip, id)
     local lines = BuildLines(id)
     if #lines <= 0 then return end
     adding = true
+    ReleaseBars(tooltip)
     tooltip:AddLine(" ")
-    for _, line in ipairs(lines) do
-        if line.right then
-            tooltip:AddDoubleLine(line.left, line.right, line.r, line.g, line.b, line.r2, line.g2, line.b2)
-        else
-            tooltip:AddLine(line.left, line.r, line.g, line.b, true)
-        end
-    end
-
+    RenderLines(tooltip, lines)
     tooltip:Show()
     adding = false
 end
@@ -249,6 +372,7 @@ end
 
 local function OnTooltipHide(tooltip)
     tooltip.auAchievement = nil
+    ReleaseBars(tooltip)
 end
 
 local function ShowOwnTooltip(owner, id)
@@ -258,19 +382,14 @@ local function ShowOwnTooltip(owner, id)
     local ach = AchievementsUtils:GetAchievement(id)
     if ach == nil then return end
     adding = true
+    ReleaseBars(GameTooltip)
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     GameTooltip:SetText(AchievementsUtils:ColorByStatus(ach.name, ach.completed), 1, 1, 1)
     if ach.description and ach.description ~= "" then GameTooltip:AddLine(ach.description, 1, 1, 1, true) end
     local lines = BuildLines(id)
     if #lines > 0 then
         GameTooltip:AddLine(" ")
-        for _, line in ipairs(lines) do
-            if line.right then
-                GameTooltip:AddDoubleLine(line.left, line.right, line.r, line.g, line.b, line.r2, line.g2, line.b2)
-            else
-                GameTooltip:AddLine(line.left, line.r, line.g, line.b, true)
-            end
-        end
+        RenderLines(GameTooltip, lines)
     end
 
     if AchievementsUtils:IsEnabled("CONTEXTMENU") then

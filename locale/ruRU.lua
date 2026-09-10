@@ -21,6 +21,7 @@ AchievementsUtils:AddTrans("ruRU", "LID_ACHSTYLECOMPACT", "Компактный"
 AchievementsUtils:AddTrans("ruRU", "LID_ACHIEVEMENTTOOLTIP", "Подсказки достижений")
 AchievementsUtils:AddTrans("ruRU", "LID_ENABLEACHTOOLTIP", "Добавлять сведения в подсказки достижений")
 AchievementsUtils:AddTrans("ruRU", "LID_TTPROGRESS", "Показывать скрытые сведения о прогрессе")
+AchievementsUtils:AddTrans("ruRU", "LID_TTPROGRESSBAR", "Показывать прогресс полосой")
 AchievementsUtils:AddTrans("ruRU", "LID_TTSERIES", "Показывать \"Часть серии\"")
 AchievementsUtils:AddTrans("ruRU", "LID_TTREQUIREDBY", "Показывать \"Требуется для\"")
 AchievementsUtils:AddTrans("ruRU", "LID_TTID", "Показывать ID достижения")

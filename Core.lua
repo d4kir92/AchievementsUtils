@@ -155,6 +155,13 @@ local options = {
         ["default"] = true
     },
     {
+        ["key"] = "TTPROGRESSBAR",
+        ["kind"] = "toggle",
+        ["label"] = "LID_TTPROGRESSBAR",
+        ["parent"] = "TTPROGRESS",
+        ["default"] = true
+    },
+    {
         ["key"] = "TTSERIES",
         ["kind"] = "toggle",
         ["label"] = "LID_TTSERIES",
