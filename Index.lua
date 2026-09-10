@@ -575,25 +575,48 @@ function AchievementsUtils:GetIndexCount()
     return index.count or 0
 end
 
-function AchievementsUtils:ScanOpenAchievements(cursor, budget, match, results, maxResults)
+function AchievementsUtils:ScanSections(cursor, budget, sections, maxResults)
     cursor = cursor or 0
     if index == nil or not index.ready then return cursor, true end
+    local total = #index.list
+    local count = #sections
+    local open = 0
+    for i = 1, count do
+        if #sections[i].found < maxResults then open = open + 1 end
+    end
+
+    if open <= 0 then return cursor, true end
     local scanned = 0
     local checked = 0
     local clock = nil
     if budget.time then clock = Clock() end
     while scanned < budget.scan and checked < budget.check do
         cursor = cursor + 1
+        if cursor > total then return cursor, true end
         local entry = index.list[cursor]
-        if entry == nil then return cursor, true end
         scanned = scanned + 1
-        if not entry.completed and (match == nil or match(entry)) then
-            checked = checked + 1
-            local done, total = AchievementsUtils:GetCriteriaProgress(entry.id)
-            entry.progressDone = done
-            entry.progressTotal = total
-            tinsert(results, entry)
-            if #results >= maxResults then return cursor, true end
+        if not entry.completed then
+            local hit = false
+            for i = 1, count do
+                local section = sections[i]
+                local found = section.found
+                local size = #found
+                if size < maxResults and section.match(entry) then
+                    if not hit then
+                        hit = true
+                        checked = checked + 1
+                        local done, criteria = AchievementsUtils:GetCriteriaProgress(entry.id)
+                        entry.progressDone = done
+                        entry.progressTotal = criteria
+                    end
+
+                    found[size + 1] = entry
+                    if size + 1 >= maxResults then
+                        open = open - 1
+                        if open <= 0 then return cursor, true end
+                    end
+                end
+            end
         end
 
         if Expired(clock, budget.time) then break end

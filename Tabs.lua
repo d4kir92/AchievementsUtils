@@ -10,9 +10,9 @@ local INDEX_POLL_DELAY = 0.3
 local SECTION_MAX = 30
 local MIN_NEEDLE = 5
 local SCAN_BUDGET = {
-    ["scan"] = 200,
-    ["check"] = 4,
-    ["time"] = 1
+    ["scan"] = 4000,
+    ["check"] = 80,
+    ["time"] = 6
 }
 
 local TICK_DELAY = 0.02
@@ -93,6 +93,7 @@ local activeTab = nil
 local offset = 0
 local currentLevel = 1
 local suggestJob = nil
+local suggestCache = nil
 local zonePending = false
 local indexPending = false
 local indexStage = 0
@@ -331,8 +332,20 @@ local function AddZoneSection(sections, text, key, zone, optional)
         ["text"] = text,
         ["key"] = key,
         ["optional"] = optional,
+        ["found"] = {},
         ["match"] = function(entry) return MatchesText(entry, needles) end
     })
+end
+
+local function SuggestSignature(sections)
+    local parts = {}
+    for i = 1, #sections do
+        parts[i] = sections[i].key .. "=" .. sections[i].text
+    end
+
+    tinsert(parts, tostring(AchievementsUtils:GetIndexCount()))
+    tinsert(parts, tostring(AchievementsUtils:IsOpenCriteriaReady()))
+    return table.concat(parts, "\30")
 end
 
 local function BuildSuggestions()
@@ -350,6 +363,7 @@ local function BuildSuggestions()
                 ["text"] = AchievementsUtils:Trans("LID_HOLIDAY", nil, title),
                 ["key"] = "HOLIDAY:" .. title,
                 ["optional"] = true,
+                ["found"] = {},
                 ["match"] = function(entry) return entry.category == categoryID end
             })
         end
@@ -367,6 +381,7 @@ local function BuildSuggestions()
         tinsert(sections, {
             ["text"] = AchievementsUtils:Trans("LID_EXPANSION", nil, expansion),
             ["key"] = "EXPANSION",
+            ["found"] = {},
             ["match"] = function(entry) return string.find(entry.lcategory, needle, 1, true) ~= nil end
         })
     end
@@ -376,12 +391,20 @@ local function BuildSuggestions()
         return
     end
 
+    local signature = SuggestSignature(sections)
+    if suggestCache and suggestCache.signature == signature then
+        for i = 1, #suggestCache.items do
+            items[i] = suggestCache.items[i]
+        end
+
+        return
+    end
+
     suggestJob = {
         ["sections"] = sections,
         ["seen"] = {},
-        ["pos"] = 1,
+        ["signature"] = signature,
         ["cursor"] = 0,
-        ["found"] = {},
         ["count"] = AchievementsUtils:GetIndexCount()
     }
 end
@@ -452,12 +475,10 @@ end
 
 local function GetSuggestPercent()
     if suggestJob == nil then return 100 end
-    local total = #suggestJob.sections
-    if total <= 0 then return 100 end
-    local share = 0
-    if suggestJob.count > 0 then share = suggestJob.cursor / suggestJob.count end
-    if share > 1 then share = 1 end
-    local value = math.floor(((suggestJob.pos - 1) + share) / total * 100)
+    local total = suggestJob.count or 0
+    if total <= 0 then return 99 end
+    local value = math.floor(suggestJob.cursor / total * 100)
+    if value < 0 then value = 0 end
     if value > 99 then value = 99 end
     return value
 end
@@ -761,35 +782,39 @@ end
 
 local function StepSuggestions(job)
     if job == nil or job ~= suggestJob then return end
-    local section = job.sections[job.pos]
-    if section == nil then
-        suggestJob = nil
-        if #items <= 0 then AddInfo(AchievementsUtils:Trans("LID_NOSUGGESTIONS")) end
-        ApplyCollapse()
-        UpdateRows()
-        return
-    end
-
-    local cursor, done = AchievementsUtils:ScanOpenAchievements(job.cursor, SCAN_BUDGET, section.match, job.found, SECTION_MAX)
+    local cursor, done = AchievementsUtils:ScanSections(job.cursor, SCAN_BUDGET, job.sections, SECTION_MAX)
     job.cursor = cursor
-    if done then
-        AchievementsUtils:SortOpenResults(job.found)
-        if #job.found > 0 or not section.optional then AddSection(section.text, section.key, job.found, job.seen) end
-        job.pos = job.pos + 1
-        job.cursor = 0
-        job.found = {}
-        job.percent = nil
-        ApplyCollapse()
-        UpdateRows()
-    else
+    if not done then
         local percent = GetSuggestPercent()
         if percent ~= job.percent then
             job.percent = percent
             UpdateStatus()
         end
+
+        C_Timer.After(TICK_DELAY, function() StepSuggestions(job) end)
+        return
     end
 
-    C_Timer.After(TICK_DELAY, function() StepSuggestions(job) end)
+    suggestJob = nil
+    for i = 1, #job.sections do
+        local section = job.sections[i]
+        AchievementsUtils:SortOpenResults(section.found)
+        if #section.found > 0 or not section.optional then AddSection(section.text, section.key, section.found, job.seen) end
+    end
+
+    if #items <= 0 then AddInfo(AchievementsUtils:Trans("LID_NOSUGGESTIONS")) end
+    local cached = {}
+    for i = 1, #items do
+        cached[i] = items[i]
+    end
+
+    suggestCache = {
+        ["signature"] = job.signature,
+        ["items"] = cached
+    }
+
+    ApplyCollapse()
+    UpdateRows()
 end
 
 local function UpdateIndexInfo()
@@ -1323,6 +1348,13 @@ local function OnZoneChanged()
         AchievementsUtils:RefreshExtraTab()
     end)
 end
+
+AchievementsUtils:AddEvent("ACHIEVEMENT_EARNED", function()
+    suggestCache = nil
+    if activeTab ~= "TABSUGGESTIONS" then return end
+    if panel == nil or not panel:IsShown() then return end
+    AchievementsUtils:RefreshExtraTab()
+end)
 
 AchievementsUtils:AddEvent("ZONE_CHANGED", OnZoneChanged)
 AchievementsUtils:AddEvent("ZONE_CHANGED_INDOORS", OnZoneChanged)
