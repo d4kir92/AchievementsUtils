@@ -332,10 +332,6 @@ for _, info in ipairs(options) do
     optionByKey[info.key] = info
 end
 
-function AchievementsUtils:IsSecret(value)
-    return issecretvalue ~= nil and issecretvalue(value) == true
-end
-
 function AchievementsUtils:GetAddonName()
     return ADDON
 end
