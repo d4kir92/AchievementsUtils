@@ -33,8 +33,8 @@
 ## DefaultState: enabled
 ## SavedVariables: AchievementsUtilsDB
 ## SavedVariablesPerCharacter: AchievementsUtilsPCDB
-## X-Curse-Project-ID:
-## X-Wago-ID:
+## X-Curse-Project-ID: 1689580
+## X-Wago-ID: rN4k5dGD
 ## IconTexture: 236373
 
 libs\D4Lib\D4Lib.xml
