@@ -7,6 +7,11 @@ local BAR_INSET = 10
 local BAR_SPACING = 12
 local BAR_FILL = "Interface\\AchievementFrame\\UI-Achievement-ProgressBar-Fill"
 local BAR_FALLBACK = "Interface\\TargetingFrame\\UI-StatusBar"
+local MARK_DONE = "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t"
+local MARK_OPEN = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:0|t"
+local CRITERIA_COLOR = {0.25, 1, 0.25}
+local LIST_COLOR = {0.7, 0.7, 0.7}
+local BULLET = "|cff808080\226\128\162|r "
 local bars = {}
 local adding = false
 local installed = false
@@ -44,10 +49,50 @@ local function GetOwnerAchievementID(owner)
     return nil
 end
 
+local function AddCriteriaEntry(lines, pending, text)
+    if pending.text == nil then
+        pending.text = text
+
+        return
+    end
+
+    tinsert(
+        lines,
+        {
+            ["left"] = pending.text,
+            ["right"] = text,
+            ["r"] = CRITERIA_COLOR[1],
+            ["g"] = CRITERIA_COLOR[2],
+            ["b"] = CRITERIA_COLOR[3],
+            ["r2"] = CRITERIA_COLOR[1],
+            ["g2"] = CRITERIA_COLOR[2],
+            ["b2"] = CRITERIA_COLOR[3]
+        }
+    )
+
+    pending.text = nil
+end
+
+local function FlushCriteria(lines, pending)
+    if pending.text == nil then return end
+    tinsert(
+        lines,
+        {
+            ["left"] = pending.text,
+            ["r"] = CRITERIA_COLOR[1],
+            ["g"] = CRITERIA_COLOR[2],
+            ["b"] = CRITERIA_COLOR[3]
+        }
+    )
+
+    pending.text = nil
+end
+
 local function AddProgressLines(lines, id, maxLines)
     local done, total = AchievementsUtils:GetCriteriaProgress(id)
     if total <= 0 then return end
     local useBars = AchievementsUtils:IsEnabled("TTPROGRESSBAR")
+    local pending = {}
     if total > 1 then
         tinsert(
             lines,
@@ -63,6 +108,7 @@ local function AddProgressLines(lines, id, maxLines)
     local shown = 0
     for i = 1, total do
         if shown >= maxLines then
+            FlushCriteria(lines, pending)
             tinsert(
                 lines,
                 {
@@ -77,47 +123,40 @@ local function AddProgressLines(lines, id, maxLines)
         end
 
         local criteriaString, _, completed, quantity, reqQuantity, _, _, _, quantityString = GetAchievementCriteriaInfo(id, i)
-        if not completed and useBars and type(reqQuantity) == "number" and reqQuantity > 1 then
-            if criteriaString and criteriaString ~= "" then
+        local name = criteriaString
+        if name == nil or name == "" then name = quantityString end
+        local hasQuantity = type(reqQuantity) == "number" and reqQuantity > 1
+        if hasQuantity and not completed then
+            FlushCriteria(lines, pending)
+            if useBars then
+                if criteriaString and criteriaString ~= "" then
+                    tinsert(
+                        lines,
+                        {
+                            ["left"] = criteriaString,
+                            ["r"] = 1,
+                            ["g"] = 1,
+                            ["b"] = 1
+                        }
+                    )
+                end
+
                 tinsert(
                     lines,
                     {
-                        ["left"] = criteriaString,
-                        ["r"] = 1,
-                        ["g"] = 1,
-                        ["b"] = 1
+                        ["bar"] = true,
+                        ["value"] = quantity or 0,
+                        ["max"] = reqQuantity,
+                        ["text"] = format("%d / %d", quantity or 0, reqQuantity)
                     }
                 )
-            end
-
-            tinsert(
-                lines,
-                {
-                    ["bar"] = true,
-                    ["value"] = quantity or 0,
-                    ["max"] = reqQuantity,
-                    ["text"] = format("%d / %d", quantity or 0, reqQuantity)
-                }
-            )
-
-            shown = shown + 1
-        elseif not completed then
-            local left = criteriaString
-            if left == nil or left == "" then left = quantityString end
-            local right = nil
-            if reqQuantity and reqQuantity > 1 then
-                right = format("%d/%d", quantity or 0, reqQuantity)
-                if left == nil or left == "" then
-                    left = quantityString or ""
-                    right = nil
-                end
-            end
-
-            if left and left ~= "" then
+            else
+                local right = nil
+                if criteriaString and criteriaString ~= "" then right = format("%d/%d", quantity or 0, reqQuantity) end
                 tinsert(
                     lines,
                     {
-                        ["left"] = left,
+                        ["left"] = name or "",
                         ["right"] = right,
                         ["r"] = 1,
                         ["g"] = 1,
@@ -127,29 +166,33 @@ local function AddProgressLines(lines, id, maxLines)
                         ["b2"] = 0
                     }
                 )
-
-                shown = shown + 1
             end
+
+            shown = shown + 1
+        elseif name and name ~= "" then
+            local mark = MARK_OPEN
+            if completed then mark = MARK_DONE end
+            AddCriteriaEntry(lines, pending, name .. " " .. mark)
+            shown = shown + 1
         end
     end
+
+    FlushCriteria(lines, pending)
 end
 
-local function AddAchievementRow(lines, id, prefix)
+local function AddListRow(lines, id, prefix, current)
     local ach = AchievementsUtils:GetAchievement(id)
     if ach == nil then return end
-    local color = {0.7, 0.7, 0.7}
-    if ach.completed then color = {0.25, 1, 0.25} end
+    local color = LIST_COLOR
+    if ach.completed then color = CRITERIA_COLOR end
+    if current then color = {1, 0.82, 0} end
     tinsert(
         lines,
         {
             ["left"] = (prefix or "") .. ach.name,
-            ["right"] = tostring(ach.points),
             ["r"] = color[1],
             ["g"] = color[2],
-            ["b"] = color[3],
-            ["r2"] = 1,
-            ["g2"] = 0.82,
-            ["b2"] = 0
+            ["b"] = color[3]
         }
     )
 end
@@ -167,29 +210,17 @@ local function AddSeriesLines(lines, id)
         }
     )
 
+    local index = 0
     for _, value in ipairs(before) do
-        AddAchievementRow(lines, value, "  ")
+        index = index + 1
+        AddListRow(lines, value, format("  %d. ", index), false)
     end
 
-    local ach = AchievementsUtils:GetAchievement(id)
-    if ach then
-        tinsert(
-            lines,
-            {
-                ["left"] = "  " .. ach.name,
-                ["right"] = tostring(ach.points),
-                ["r"] = 1,
-                ["g"] = 1,
-                ["b"] = 1,
-                ["r2"] = 1,
-                ["g2"] = 0.82,
-                ["b2"] = 0
-            }
-        )
-    end
-
+    index = index + 1
+    AddListRow(lines, id, format("  %d. ", index), true)
     for _, value in ipairs(after) do
-        AddAchievementRow(lines, value, "  ")
+        index = index + 1
+        AddListRow(lines, value, format("  %d. ", index), false)
     end
 end
 
@@ -207,7 +238,7 @@ local function AddRequiredByLines(lines, id)
     )
 
     for _, value in ipairs(list) do
-        AddAchievementRow(lines, value, "  ")
+        AddListRow(lines, value, "  " .. BULLET, false)
     end
 end
 
