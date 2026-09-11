@@ -1,5 +1,5 @@
 ## Interface: 40402
-## Version: 0.2.0
+## Version: 0.2.1
 ## Title: AchievementsUtils |T133176:16:16:0:0|t by |cff55d2ffD4KiR |T132115:16:16:0:0|t
 ## Notes: Adds search, suggestions, watch list and related tabs to the achievement window, extra tooltip information and reminders.
 ## Notes-deDE: Fügt dem Erfolgsfenster Tabs für Suche, Vorschläge, Merkliste und verwandte Erfolge hinzu, dazu mehr Tooltip-Infos und Erinnerungen.
