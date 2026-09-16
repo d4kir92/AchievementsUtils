@@ -45,6 +45,8 @@ AchievementsUtils:AddTrans("ptBR", "LID_AUTOTRACKZONE", "Conquistas da zona atua
 AchievementsUtils:AddTrans("ptBR", "LID_AUTOTRACKTIMED", "Conquistas cronometradas quando o tempo começa")
 AchievementsUtils:AddTrans("ptBR", "LID_AUTOTRACKWATCH", "Conquistas da lista")
 AchievementsUtils:AddTrans("ptBR", "LID_AUTOTRACKMAX", "Máx. rastreadas automaticamente: %s")
+AchievementsUtils:AddTrans("ptBR", "LID_UNTRACKCOMPLETED", "Parar de rastrear conquistas concluídas")
+AchievementsUtils:AddTrans("ptBR", "LID_UNTRACKEDACHIEVEMENT", "Conquista concluída, rastreamento removido: %s")
 AchievementsUtils:AddTrans("ptBR", "LID_REQUIRES", "requer %s")
 AchievementsUtils:AddTrans("ptBR", "LID_NONE", "Nenhum")
 AchievementsUtils:AddTrans("ptBR", "LID_INDEXUNAVAILABLE", "Este cliente não tem API de conquistas.")

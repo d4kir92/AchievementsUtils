@@ -45,6 +45,8 @@ AchievementsUtils:AddTrans("enUS", "LID_AUTOTRACKZONE", "Achievements of the cur
 AchievementsUtils:AddTrans("enUS", "LID_AUTOTRACKTIMED", "Timed achievements when the timer starts")
 AchievementsUtils:AddTrans("enUS", "LID_AUTOTRACKWATCH", "Achievements from the watch list")
 AchievementsUtils:AddTrans("enUS", "LID_AUTOTRACKMAX", "Max. automatically tracked: %s")
+AchievementsUtils:AddTrans("enUS", "LID_UNTRACKCOMPLETED", "Untrack completed achievements")
+AchievementsUtils:AddTrans("enUS", "LID_UNTRACKEDACHIEVEMENT", "Achievement completed, tracking removed: %s")
 AchievementsUtils:AddTrans("enUS", "LID_REQUIRES", "requires %s")
 AchievementsUtils:AddTrans("enUS", "LID_NONE", "None")
 AchievementsUtils:AddTrans("enUS", "LID_INDEXUNAVAILABLE", "This client has no achievement API.")

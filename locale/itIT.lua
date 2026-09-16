@@ -45,6 +45,8 @@ AchievementsUtils:AddTrans("itIT", "LID_AUTOTRACKZONE", "Imprese della zona attu
 AchievementsUtils:AddTrans("itIT", "LID_AUTOTRACKTIMED", "Imprese a tempo quando parte il timer")
 AchievementsUtils:AddTrans("itIT", "LID_AUTOTRACKWATCH", "Imprese dalla lista")
 AchievementsUtils:AddTrans("itIT", "LID_AUTOTRACKMAX", "Max tracciate automaticamente: %s")
+AchievementsUtils:AddTrans("itIT", "LID_UNTRACKCOMPLETED", "Smetti di seguire le imprese completate")
+AchievementsUtils:AddTrans("itIT", "LID_UNTRACKEDACHIEVEMENT", "Impresa completata, monitoraggio rimosso: %s")
 AchievementsUtils:AddTrans("itIT", "LID_REQUIRES", "richiede %s")
 AchievementsUtils:AddTrans("itIT", "LID_NONE", "Nessuno")
 AchievementsUtils:AddTrans("itIT", "LID_INDEXUNAVAILABLE", "Questo client non ha l'API delle imprese.")

@@ -45,6 +45,8 @@ AchievementsUtils:AddTrans("deDE", "LID_AUTOTRACKZONE", "Erfolge des aktuellen G
 AchievementsUtils:AddTrans("deDE", "LID_AUTOTRACKTIMED", "Zeitbasierte Erfolge, sobald der Timer startet")
 AchievementsUtils:AddTrans("deDE", "LID_AUTOTRACKWATCH", "Erfolge aus der Merkliste")
 AchievementsUtils:AddTrans("deDE", "LID_AUTOTRACKMAX", "Max. automatisch verfolgt: %s")
+AchievementsUtils:AddTrans("deDE", "LID_UNTRACKCOMPLETED", "Abgeschlossene Erfolge nicht mehr verfolgen")
+AchievementsUtils:AddTrans("deDE", "LID_UNTRACKEDACHIEVEMENT", "Erfolg abgeschlossen, Verfolgung entfernt: %s")
 AchievementsUtils:AddTrans("deDE", "LID_REQUIRES", "benötigt %s")
 AchievementsUtils:AddTrans("deDE", "LID_NONE", "Keiner")
 AchievementsUtils:AddTrans("deDE", "LID_INDEXUNAVAILABLE", "Dieser Client hat keine Erfolgs-API.")

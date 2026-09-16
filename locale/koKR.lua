@@ -45,6 +45,8 @@ AchievementsUtils:AddTrans("koKR", "LID_AUTOTRACKZONE", "현재 지역의 업적
 AchievementsUtils:AddTrans("koKR", "LID_AUTOTRACKTIMED", "타이머가 시작되면 시간제한 업적 추적")
 AchievementsUtils:AddTrans("koKR", "LID_AUTOTRACKWATCH", "목록에 있는 업적")
 AchievementsUtils:AddTrans("koKR", "LID_AUTOTRACKMAX", "최대 자동 추적 수: %s")
+AchievementsUtils:AddTrans("koKR", "LID_UNTRACKCOMPLETED", "완료된 업적 추적 해제")
+AchievementsUtils:AddTrans("koKR", "LID_UNTRACKEDACHIEVEMENT", "업적 완료, 추적이 해제되었습니다: %s")
 AchievementsUtils:AddTrans("koKR", "LID_REQUIRES", "%s 필요")
 AchievementsUtils:AddTrans("koKR", "LID_NONE", "없음")
 AchievementsUtils:AddTrans("koKR", "LID_INDEXUNAVAILABLE", "이 클라이언트에는 업적 API가 없습니다.")

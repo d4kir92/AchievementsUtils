@@ -2,8 +2,11 @@ local _, AchievementsUtils = ...
 local ZONE_DELAY = 2
 local CRITERIA_THROTTLE = 1
 local TRACK_LIMIT = 10
+local UNTRACK_DELAY = 1
+local UNTRACK_LOGIN_DELAY = 5
 local autoTracked = {}
 local zonePending = false
+local untrackPending = false
 local lastCriteria = 0
 local lastZone = nil
 
@@ -108,6 +111,40 @@ local function CheckTimed()
     end
 end
 
+local function UntrackCompleted()
+    if not AchievementsUtils:CanTrack() then return end
+    if not AchievementsUtils:IsEnabled("UNTRACKCOMPLETED") then return end
+    for _, id in ipairs(AchievementsUtils:GetTrackedIDs()) do
+        local ach = AchievementsUtils:GetAchievement(id)
+        if ach and ach.completed then
+            AchievementsUtils:SetTracked(id, false)
+            autoTracked[id] = nil
+            local link = nil
+            if type(GetAchievementLink) == "function" then link = GetAchievementLink(id) end
+            AchievementsUtils:MSG(AchievementsUtils:Trans("LID_UNTRACKEDACHIEVEMENT", nil, link or ach.name))
+        end
+    end
+end
+
+local function QueueUntrack()
+    if untrackPending then return end
+    if not AchievementsUtils:CanTrack() then return end
+    if not AchievementsUtils:IsEnabled("UNTRACKCOMPLETED") then return end
+    untrackPending = true
+    C_Timer.After(
+        UNTRACK_DELAY,
+        function()
+            untrackPending = false
+            UntrackCompleted()
+        end
+    )
+end
+
+AchievementsUtils:AddEvent("PLAYER_LOGIN", function() C_Timer.After(UNTRACK_LOGIN_DELAY, UntrackCompleted) end)
+AchievementsUtils:AddEvent("TRACKED_ACHIEVEMENT_LIST_CHANGED", QueueUntrack)
+AchievementsUtils:AddEvent("TRACKED_ACHIEVEMENT_UPDATE", QueueUntrack)
+AchievementsUtils:AddEvent("CONTENT_TRACKING_UPDATE", QueueUntrack)
+
 AchievementsUtils:AddEvent(
     "PLAYER_ENTERING_WORLD",
     function()
@@ -150,6 +187,7 @@ AchievementsUtils:AddEvent(
     "ACHIEVEMENT_EARNED",
     function(event, id)
         if autoTracked[id] then autoTracked[id] = nil end
+        QueueUntrack()
     end
 )
 
@@ -169,3 +207,4 @@ AchievementsUtils:OnOptionChanged(
 AchievementsUtils:OnOptionChanged("AUTOTRACKWATCH", function() QueueZoneUpdate() end)
 AchievementsUtils:OnOptionChanged("AUTOTRACKZONE", function() QueueZoneUpdate() end)
 AchievementsUtils:OnOptionChanged("WATCHLIST", function() QueueZoneUpdate() end)
+AchievementsUtils:OnOptionChanged("UNTRACKCOMPLETED", function() QueueUntrack() end)

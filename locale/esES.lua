@@ -45,6 +45,8 @@ AchievementsUtils:AddTrans("esES", "LID_AUTOTRACKZONE", "Logros de la zona actua
 AchievementsUtils:AddTrans("esES", "LID_AUTOTRACKTIMED", "Logros cronometrados cuando empieza el temporizador")
 AchievementsUtils:AddTrans("esES", "LID_AUTOTRACKWATCH", "Logros de la lista de seguimiento")
 AchievementsUtils:AddTrans("esES", "LID_AUTOTRACKMAX", "Máx. seguidos automáticamente: %s")
+AchievementsUtils:AddTrans("esES", "LID_UNTRACKCOMPLETED", "Dejar de seguir logros completados")
+AchievementsUtils:AddTrans("esES", "LID_UNTRACKEDACHIEVEMENT", "Logro completado, seguimiento eliminado: %s")
 AchievementsUtils:AddTrans("esES", "LID_REQUIRES", "requiere %s")
 AchievementsUtils:AddTrans("esES", "LID_NONE", "Ninguno")
 AchievementsUtils:AddTrans("esES", "LID_INDEXUNAVAILABLE", "Este cliente no tiene API de logros.")

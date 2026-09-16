@@ -45,6 +45,8 @@ AchievementsUtils:AddTrans("ruRU", "LID_AUTOTRACKZONE", "Достижения т
 AchievementsUtils:AddTrans("ruRU", "LID_AUTOTRACKTIMED", "Достижения на время при запуске таймера")
 AchievementsUtils:AddTrans("ruRU", "LID_AUTOTRACKWATCH", "Достижения из списка")
 AchievementsUtils:AddTrans("ruRU", "LID_AUTOTRACKMAX", "Макс. авто-отслеживаний: %s")
+AchievementsUtils:AddTrans("ruRU", "LID_UNTRACKCOMPLETED", "Снимать отслеживание завершённых достижений")
+AchievementsUtils:AddTrans("ruRU", "LID_UNTRACKEDACHIEVEMENT", "Достижение выполнено, отслеживание снято: %s")
 AchievementsUtils:AddTrans("ruRU", "LID_REQUIRES", "требуется %s")
 AchievementsUtils:AddTrans("ruRU", "LID_NONE", "Нет")
 AchievementsUtils:AddTrans("ruRU", "LID_INDEXUNAVAILABLE", "В этом клиенте нет API достижений.")

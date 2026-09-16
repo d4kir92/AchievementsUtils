@@ -345,6 +345,13 @@ local options = {
         ["step"] = 1,
         ["decimals"] = 0
     },
+    {
+        ["key"] = "UNTRACKCOMPLETED",
+        ["kind"] = "toggle",
+        ["label"] = "LID_UNTRACKCOMPLETED",
+        ["needsTrack"] = true,
+        ["default"] = false
+    },
 }
 
 for _, info in ipairs(options) do
@@ -549,17 +556,18 @@ function AchievementsUtils:IsTracked(id)
     return false
 end
 
-function AchievementsUtils:GetTrackedCount()
+function AchievementsUtils:GetTrackedIDs()
     if C_ContentTracking and trackingType and C_ContentTracking.GetTrackedIDs then
         local ids = C_ContentTracking.GetTrackedIDs(trackingType)
-        if type(ids) == "table" then return #ids end
+        if type(ids) == "table" then return ids end
     end
 
-    if type(GetTrackedAchievements) == "function" then
-        local tracked = {GetTrackedAchievements()}
-        return #tracked
-    end
-    return 0
+    if type(GetTrackedAchievements) == "function" then return {GetTrackedAchievements()} end
+    return {}
+end
+
+function AchievementsUtils:GetTrackedCount()
+    return #AchievementsUtils:GetTrackedIDs()
 end
 
 function AchievementsUtils:CanTrack()

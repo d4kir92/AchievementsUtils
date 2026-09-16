@@ -45,6 +45,8 @@ AchievementsUtils:AddTrans("frFR", "LID_AUTOTRACKZONE", "Hauts faits de la zone 
 AchievementsUtils:AddTrans("frFR", "LID_AUTOTRACKTIMED", "Hauts faits chronométrés au démarrage du minuteur")
 AchievementsUtils:AddTrans("frFR", "LID_AUTOTRACKWATCH", "Hauts faits de la liste")
 AchievementsUtils:AddTrans("frFR", "LID_AUTOTRACKMAX", "Suivis automatiques max. : %s")
+AchievementsUtils:AddTrans("frFR", "LID_UNTRACKCOMPLETED", "Ne plus suivre les hauts faits accomplis")
+AchievementsUtils:AddTrans("frFR", "LID_UNTRACKEDACHIEVEMENT", "Haut fait accompli, suivi retiré : %s")
 AchievementsUtils:AddTrans("frFR", "LID_REQUIRES", "nécessite %s")
 AchievementsUtils:AddTrans("frFR", "LID_NONE", "Aucun")
 AchievementsUtils:AddTrans("frFR", "LID_INDEXUNAVAILABLE", "Ce client n'a pas d'API de hauts faits.")
