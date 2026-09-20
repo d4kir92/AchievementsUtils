@@ -1158,7 +1158,7 @@ local function RowOnEnter(sel)
 end
 
 local function RowOnLeave()
-    GameTooltip:Hide()
+    AchievementsUtils:HideGameTooltip()
 end
 
 local function CreateRow(parentFrame, i)

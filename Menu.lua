@@ -476,7 +476,7 @@ function AchievementsUtils:ShowDropdown(entries, owner)
 
     local menu = GetMenu(1)
     AchievementsUtils:HideAchievementMenu()
-    if type(GameTooltip) == "table" and GameTooltip:IsShown() then GameTooltip:Hide() end
+    AchievementsUtils:HideGameTooltip()
     if not CheckGlobalMouse(menu) then CreateCatcher():Show() end
     ShowMenu(1, entries, owner, true)
     menu.auOwner = owner
@@ -491,7 +491,7 @@ function AchievementsUtils:ShowAchievementMenu(id, owner)
     local entries = BuildEntries(id, owner)
     if entries == nil then return false end
     AchievementsUtils:HideAchievementMenu()
-    if type(GameTooltip) == "table" and GameTooltip:IsShown() then GameTooltip:Hide() end
+    AchievementsUtils:HideGameTooltip()
     if not CheckGlobalMouse(GetMenu(1)) then CreateCatcher():Show() end
     ShowMenu(1, entries)
 

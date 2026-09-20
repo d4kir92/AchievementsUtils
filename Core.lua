@@ -439,6 +439,32 @@ for _, info in ipairs(options) do
     optionByKey[info.key] = info
 end
 
+function AchievementsUtils:IsSecret(value)
+    return issecretvalue ~= nil and issecretvalue(value) == true
+end
+
+function AchievementsUtils:HasWidgetSet(tooltip)
+    if type(tooltip) ~= "table" then return false end
+    local container = tooltip.widgetContainer
+    if type(container) ~= "table" then return false end
+    if type(container.IsRegisteredForWidgetSet) ~= "function" then return false end
+    if not container:IsRegisteredForWidgetSet() then return false end
+    local frames = container.widgetFrames
+    if type(frames) ~= "table" then return false end
+    for _ in pairs(frames) do
+        return true
+    end
+
+    return false
+end
+
+function AchievementsUtils:HideGameTooltip()
+    if type(GameTooltip) ~= "table" then return end
+    if not GameTooltip:IsShown() then return end
+    if AchievementsUtils:HasWidgetSet(GameTooltip) then return end
+    GameTooltip:Hide()
+end
+
 function AchievementsUtils:GetAddonName()
     return ADDON
 end

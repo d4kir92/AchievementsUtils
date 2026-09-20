@@ -224,7 +224,7 @@ local function ButtonOnEnter(sel)
 end
 
 local function ButtonOnLeave()
-    GameTooltip:Hide()
+    AchievementsUtils:HideGameTooltip()
 end
 
 local function CreateNavButton(name, texture, label)

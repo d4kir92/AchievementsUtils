@@ -381,6 +381,7 @@ local function Decorate(tooltip, id)
     if adding then return end
     if tooltip == nil or id == nil then return end
     if not AchievementsUtils:IsEnabled("ACHTOOLTIP") then return end
+    if AchievementsUtils:HasWidgetSet(tooltip) then return end
     if tooltip.auAchievement == id then return end
     tooltip.auAchievement = id
     local lines = BuildLines(id)
@@ -410,6 +411,7 @@ local function ShowOwnTooltip(owner, id)
     if adding then return end
     if type(owner) ~= "table" or type(id) ~= "number" then return end
     if not AchievementsUtils:IsEnabled("ACHTOOLTIP") then return end
+    if AchievementsUtils:HasWidgetSet(GameTooltip) then return end
     local ach = AchievementsUtils:GetAchievement(id)
     if ach == nil then return end
     adding = true
@@ -446,7 +448,7 @@ end
 local function HideOwnTooltip()
     if GameTooltip.auAchievement == nil then return end
     GameTooltip.auAchievement = nil
-    GameTooltip:Hide()
+    AchievementsUtils:HideGameTooltip()
 end
 
 local function InstallTooltipHooks()
