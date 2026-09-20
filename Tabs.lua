@@ -198,6 +198,20 @@ local function FiltersShown()
     return activeTab == "TABSEARCH" and AchievementsUtils:IsEnabled("TABFILTERS")
 end
 
+local function UsesFilter()
+    return activeTab == "TABSUGGESTIONS" or activeTab == "TABWATCH"
+end
+
+local function SidebarShown()
+    return activeTab == "TABSEARCH" or UsesFilter()
+end
+
+local function FooterHeight()
+    if SidebarShown() then return 0 end
+
+    return FOOTER_HEIGHT
+end
+
 local function TopInset()
     return LIST_TOP
 end
@@ -255,7 +269,7 @@ local function GetListHeight()
     if panel == nil then return 0 end
     local height = panel:GetHeight()
     if height == nil or height <= 0 then return ROW_HEIGHT * 10 end
-    return height - TopInset() - FOOTER_HEIGHT
+    return height - TopInset() - FooterHeight()
 end
 
 local function CountFrom(startIndex, step)
@@ -308,14 +322,6 @@ local function SetCollapsed(key, collapsed)
     else
         db["TABCOLLAPSED"][key] = nil
     end
-end
-
-local function UsesFilter()
-    return activeTab == "TABSUGGESTIONS" or activeTab == "TABWATCH"
-end
-
-local function SidebarShown()
-    return activeTab == "TABSEARCH" or UsesFilter()
 end
 
 local function LeftInset()
@@ -1204,7 +1210,21 @@ local function AnchorScrollBar()
     if scrollBar == nil then return end
     scrollBar:ClearAllPoints()
     scrollBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -TopInset())
-    scrollBar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4, FOOTER_HEIGHT)
+    scrollBar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4, FooterHeight())
+end
+
+local function AnchorStatusText()
+    if statusText == nil then return end
+    statusText:ClearAllPoints()
+    if SidebarShown() and searchBox ~= nil then
+        local anchor = searchBox
+        if FiltersShown() and filterBar ~= nil then anchor = filterBar end
+        statusText:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -FILTER_GAP * 2)
+        statusText:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -FILTER_GAP * 2)
+    else
+        statusText:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 8, 4)
+        statusText:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -8, 4)
+    end
 end
 
 local function CreateModernScrollBar()
@@ -1212,7 +1232,7 @@ local function CreateModernScrollBar()
     if type(ScrollBarMixin) ~= "table" then return nil end
     local bar = CreateFrame("EventFrame", "AchievementsUtilsScrollBar", panel, "MinimalScrollBar")
     bar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -HEADER_HEIGHT)
-    bar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4, FOOTER_HEIGHT)
+    bar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4, FooterHeight())
     bar:SetFrameLevel(panel:GetFrameLevel() + 10)
     bar:Init(1, SCROLL_PAN)
     local event = "OnScroll"
@@ -1226,7 +1246,7 @@ local function CreateLegacyScrollBar()
     bar.auSlider = true
     bar:SetWidth(SCROLL_WIDTH)
     bar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -HEADER_HEIGHT)
-    bar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4, FOOTER_HEIGHT)
+    bar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4, FooterHeight())
     bar:SetOrientation("VERTICAL")
     bar:SetValueStep(1)
     if bar.SetObeyStepOnDrag then bar:SetObeyStepOnDrag(true) end
@@ -1315,6 +1335,7 @@ local function UpdateFilterBar()
     end
 
     AnchorScrollBar()
+    AnchorStatusText()
 end
 
 local function ApplyFilterChange()
@@ -1526,9 +1547,10 @@ local function CreatePanel()
 
     CreateFilterBar()
     statusText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    statusText:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 8, 4)
-    statusText:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -8, 4)
     statusText:SetJustifyH("LEFT")
+    statusText:SetJustifyV("TOP")
+    if statusText.SetWordWrap then statusText:SetWordWrap(true) end
+    AnchorStatusText()
     scrollBar = CreateScrollBar()
     scrollBar:Hide()
     for i = 1, MAX_ROWS do
