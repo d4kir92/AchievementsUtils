@@ -3,7 +3,11 @@ local ROW_HEIGHT = 26
 local HEADER_HEIGHT = 30
 local FILTER_HEIGHT = 26
 local FILTER_GAP = 4
-local FILTER_INSET = 10
+local SIDE_WIDTH = 190
+local SIDE_GAP = 8
+local SIDE_TOP = 8
+local SEARCH_HEIGHT = 20
+local LIST_TOP = 6
 local SEARCH_MAX = 300
 local FOOTER_HEIGHT = 18
 local MAX_ROWS = 40
@@ -152,6 +156,7 @@ local tabDefs = {
 local panel = nil
 local blizzardHooked = false
 local searchBox = nil
+local sidebar = nil
 local filterBar = nil
 local sortButton = nil
 local categoryButton = nil
@@ -194,9 +199,7 @@ local function FiltersShown()
 end
 
 local function TopInset()
-    if FiltersShown() then return HEADER_HEIGHT + FILTER_HEIGHT end
-
-    return HEADER_HEIGHT
+    return LIST_TOP
 end
 
 local function GetFilterValue(key, default)
@@ -309,6 +312,16 @@ end
 
 local function UsesFilter()
     return activeTab == "TABSUGGESTIONS" or activeTab == "TABWATCH"
+end
+
+local function SidebarShown()
+    return activeTab == "TABSEARCH" or UsesFilter()
+end
+
+local function LeftInset()
+    if SidebarShown() then return 4 + SIDE_WIDTH + SIDE_GAP end
+
+    return 4
 end
 
 local function GetFilterNeedle()
@@ -872,7 +885,7 @@ end
 
 local function AnchorRow(row, indent, top)
     row:ClearAllPoints()
-    row:SetPoint("TOPLEFT", panel, "TOPLEFT", 4 + indent, -top)
+    row:SetPoint("TOPLEFT", panel, "TOPLEFT", LeftInset() + indent, -top)
     row:SetPoint("TOPRIGHT", panel, "TOPRIGHT", RowRightInset(), -top)
 end
 
@@ -1274,34 +1287,28 @@ local function SetPanelBackground(texture)
     end
 end
 
-local function LayoutFilterBar()
-    if filterBar == nil or panel == nil then return end
-    local width = panel:GetWidth() or 0
-    if width <= 0 then return end
-    local usable = width - FILTER_INSET * 2 - FILTER_GAP * 2
-    local each = math.floor(usable / 3)
-    if each < 60 then each = 60 end
-    sortButton:SetWidth(each)
-    categoryButton:SetWidth(each)
-    rewardButton:SetWidth(each)
+local function SetFilterLabel(control, text)
+    if control == nil then return end
+    if control.SetDefaultText then control:SetDefaultText(text) end
+    if control.Update then control:Update() end
+    if control.SetText then control:SetText(text) end
 end
 
 local function UpdateFilterButtons()
     if filterBar == nil then return end
-    sortButton:SetText(AchievementsUtils:Trans("LID_SORT") .. ": " .. ChoiceLabel(sortChoices, GetFilterValue("SEARCHSORT", "DEFAULT")))
+    SetFilterLabel(sortButton, AchievementsUtils:Trans("LID_SORT") .. ": " .. ChoiceLabel(sortChoices, GetFilterValue("SEARCHSORT", "DEFAULT")))
     local categoryID = GetFilterValue("SEARCHCATEGORY", nil)
     local categoryName = nil
     if type(categoryID) == "number" then categoryName = AchievementsUtils:GetCategoryName(categoryID) end
     if categoryName == nil or categoryName == "" then categoryName = AchievementsUtils:Trans("LID_ALLCATEGORIES") end
-    categoryButton:SetText(AchievementsUtils:Trans("LID_CATEGORY") .. ": " .. categoryName)
-    rewardButton:SetText(AchievementsUtils:Trans("LID_REWARD") .. ": " .. ChoiceLabel(rewardChoices, GetFilterValue("SEARCHREWARD", "ALL")))
+    SetFilterLabel(categoryButton, AchievementsUtils:Trans("LID_CATEGORY") .. ": " .. categoryName)
+    SetFilterLabel(rewardButton, AchievementsUtils:Trans("LID_REWARD") .. ": " .. ChoiceLabel(rewardChoices, GetFilterValue("SEARCHREWARD", "ALL")))
 end
 
 local function UpdateFilterBar()
     if filterBar == nil then return end
     if FiltersShown() then
         filterBar:Show()
-        LayoutFilterBar()
         UpdateFilterButtons()
     else
         filterBar:Hide()
@@ -1419,23 +1426,48 @@ local function CategoryEntries()
     return entries
 end
 
+local function CreateFilterControl(name, parent, entriesFunc)
+    if AchievementsUtils:CheckTemplates("WowStyle1DropdownTemplate") then
+        local ok, dropdown = pcall(CreateFrame, "DropdownButton", name, parent, "WowStyle1DropdownTemplate")
+        if ok and type(dropdown) == "table" and dropdown.SetupMenu then
+            dropdown.UpdateToMenuSelections = function() end
+            dropdown:SetupMenu(function(sel, rootDescription) AchievementsUtils:BuildMenuDescription(rootDescription, entriesFunc()) end)
+
+            return dropdown
+        end
+    end
+
+    local button = AchievementsUtils:CreateButton(name, parent)
+    button:SetScript("OnClick", function(sel) AchievementsUtils:ShowDropdown(entriesFunc(), sel) end)
+
+    return button
+end
+
+local function AnchorFilterControl(control, above)
+    control:SetHeight(FILTER_HEIGHT)
+    control:ClearAllPoints()
+    if above == nil then
+        control:SetPoint("TOPLEFT", filterBar, "TOPLEFT", 0, 0)
+        control:SetPoint("TOPRIGHT", filterBar, "TOPRIGHT", 0, 0)
+
+        return
+    end
+
+    control:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -FILTER_GAP)
+    control:SetPoint("TOPRIGHT", above, "BOTTOMRIGHT", 0, -FILTER_GAP)
+end
+
 local function CreateFilterBar()
-    filterBar = CreateFrame("Frame", "AchievementsUtilsFilterBar", panel)
-    filterBar:SetHeight(FILTER_HEIGHT)
-    filterBar:SetPoint("TOPLEFT", panel, "TOPLEFT", FILTER_INSET, -HEADER_HEIGHT)
-    filterBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -FILTER_INSET, -HEADER_HEIGHT)
-    sortButton = AchievementsUtils:CreateButton("AchievementsUtilsSortButton", filterBar)
-    sortButton:SetHeight(FILTER_HEIGHT - 4)
-    sortButton:SetPoint("LEFT", filterBar, "LEFT", 0, 0)
-    sortButton:SetScript("OnClick", function(sel) AchievementsUtils:ShowDropdown(ChoiceEntries(sortChoices, "SEARCHSORT", "LID_SORT"), sel) end)
-    categoryButton = AchievementsUtils:CreateButton("AchievementsUtilsCategoryButton", filterBar)
-    categoryButton:SetHeight(FILTER_HEIGHT - 4)
-    categoryButton:SetPoint("LEFT", sortButton, "RIGHT", FILTER_GAP, 0)
-    categoryButton:SetScript("OnClick", function(sel) AchievementsUtils:ShowDropdown(CategoryEntries(), sel) end)
-    rewardButton = AchievementsUtils:CreateButton("AchievementsUtilsRewardButton", filterBar)
-    rewardButton:SetHeight(FILTER_HEIGHT - 4)
-    rewardButton:SetPoint("LEFT", categoryButton, "RIGHT", FILTER_GAP, 0)
-    rewardButton:SetScript("OnClick", function(sel) AchievementsUtils:ShowDropdown(ChoiceEntries(rewardChoices, "SEARCHREWARD", "LID_REWARD"), sel) end)
+    filterBar = CreateFrame("Frame", "AchievementsUtilsFilterBar", sidebar)
+    filterBar:SetHeight(FILTER_HEIGHT * 3 + FILTER_GAP * 2)
+    filterBar:SetPoint("TOPLEFT", searchBox, "BOTTOMLEFT", 0, -FILTER_GAP * 2)
+    filterBar:SetPoint("TOPRIGHT", searchBox, "BOTTOMRIGHT", 0, -FILTER_GAP * 2)
+    sortButton = CreateFilterControl("AchievementsUtilsSortButton", filterBar, function() return ChoiceEntries(sortChoices, "SEARCHSORT", "LID_SORT") end)
+    AnchorFilterControl(sortButton, nil)
+    categoryButton = CreateFilterControl("AchievementsUtilsCategoryButton", filterBar, CategoryEntries)
+    AnchorFilterControl(categoryButton, sortButton)
+    rewardButton = CreateFilterControl("AchievementsUtilsRewardButton", filterBar, function() return ChoiceEntries(rewardChoices, "SEARCHREWARD", "LID_REWARD") end)
+    AnchorFilterControl(rewardButton, categoryButton)
     filterBar:Hide()
 end
 
@@ -1463,10 +1495,14 @@ local function CreatePanel()
         UpdateRows()
     end)
 
-    searchBox = CreateFrame("EditBox", "AchievementsUtilsSearchBox", panel, "InputBoxTemplate")
-    searchBox:SetHeight(20)
-    searchBox:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -6)
-    searchBox:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -8, -6)
+    sidebar = CreateFrame("Frame", "AchievementsUtilsSidebar", panel)
+    sidebar:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -SIDE_TOP)
+    sidebar:SetSize(SIDE_WIDTH, SEARCH_HEIGHT + FILTER_GAP * 4 + FILTER_HEIGHT * 3)
+    sidebar:Hide()
+    searchBox = CreateFrame("EditBox", "AchievementsUtilsSearchBox", sidebar, "InputBoxTemplate")
+    searchBox:SetHeight(SEARCH_HEIGHT)
+    searchBox:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 8, 0)
+    searchBox:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", 0, 0)
     searchBox:SetAutoFocus(false)
     searchBox:SetScript("OnEscapePressed", function(sel) sel:ClearFocus() end)
     searchBox:SetScript("OnEnterPressed", function(sel) sel:ClearFocus() end)
@@ -1495,13 +1531,6 @@ local function CreatePanel()
     statusText:SetJustifyH("LEFT")
     scrollBar = CreateScrollBar()
     scrollBar:Hide()
-    panel:SetScript(
-        "OnSizeChanged",
-        function()
-            LayoutFilterBar()
-        end
-    )
-
     for i = 1, MAX_ROWS do
         rows[i] = CreateRow(panel, i)
         rows[i]:Hide()
@@ -1571,6 +1600,7 @@ function AchievementsUtils:HideExtraTab()
     activeTab = nil
     AchievementsUtils:HideAchievementMenu()
     if panel then panel:Hide() end
+    if sidebar then sidebar:Hide() end
     if filterBar then filterBar:Hide() end
     UpdateTabVisuals()
     RestoreBlizzardTabs()
@@ -1586,13 +1616,13 @@ function AchievementsUtils:ShowExtraTab(key)
     offset = 0
     RaisePanel()
     panel:Show()
-    if key == "TABSEARCH" or UsesFilter() then
+    if SidebarShown() then
         searchRestoring = true
         searchBox:SetText(searchTexts[key] or "")
         searchRestoring = false
-        searchBox:Show()
+        sidebar:Show()
     else
-        searchBox:Hide()
+        sidebar:Hide()
     end
 
     UpdateFilterBar()

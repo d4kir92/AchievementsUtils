@@ -425,6 +425,47 @@ local function BuildEntries(id, owner)
     return entries
 end
 
+local function MenuClose()
+    if type(MenuResponse) == "table" and MenuResponse.CloseAll then return MenuResponse.CloseAll end
+
+    return nil
+end
+
+function AchievementsUtils:BuildMenuDescription(root, entries)
+    if type(root) ~= "table" then return false end
+    if type(entries) ~= "table" then return false end
+    for _, entry in ipairs(entries) do
+        if entry.kind == "separator" then
+            if root.CreateDivider then root:CreateDivider() end
+        elseif entry.kind == "title" then
+            if root.CreateTitle then root:CreateTitle(entry.text) end
+        elseif entry.entries then
+            AchievementsUtils:BuildMenuDescription(root:CreateButton(entry.text), entry.entries)
+        elseif entry.check ~= nil and root.CreateRadio then
+            root:CreateRadio(
+                entry.text,
+                function() return entry.check == true end,
+                function()
+                    if entry.func then entry.func() end
+
+                    return MenuClose()
+                end
+            )
+        else
+            root:CreateButton(
+                entry.text,
+                function()
+                    if entry.func then entry.func() end
+
+                    return MenuClose()
+                end
+            )
+        end
+    end
+
+    return true
+end
+
 function AchievementsUtils:ShowDropdown(entries, owner)
     if type(entries) ~= "table" or #entries <= 0 then return false end
     if lastOwner == owner and GetTime() - lastClosed < TOGGLE_GUARD then

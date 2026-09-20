@@ -6,6 +6,7 @@ local PADDING = 8
 local ICON_SIZE = 14
 local RESULT_DELAY = 2
 local TICK_DELAY = 1
+local EMPTY_DELAY = 10
 local MAX_ROWS = 12
 local DEFAULT_Y = -160
 local BOSS_UNITS = 8
@@ -329,9 +330,21 @@ local function Schedule(id)
     C_Timer.After(
         TICK_DELAY,
         function()
-            if state == nil or state.token ~= id or state.ended then return end
+            if state == nil or state.token ~= id or state.ended or state.hidden then return end
             UpdateDisplay()
             Schedule(id)
+        end
+    )
+end
+
+local function ScheduleEmptyHide(id)
+    C_Timer.After(
+        EMPTY_DELAY,
+        function()
+            if state == nil or state.token ~= id then return end
+            if state.preview or #state.list > 0 then return end
+            state.hidden = true
+            if frame then frame:Hide() end
         end
     )
 end
@@ -382,6 +395,7 @@ local function Start(bossName)
     UpdateDisplay()
     frame:Show()
     Schedule(state.token)
+    if #state.list <= 0 then ScheduleEmptyHide(state.token) end
 
     return true
 end
