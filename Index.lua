@@ -1,5 +1,5 @@
 local _, AchievementsUtils = ...
-local CACHE_VERSION = 1
+local CACHE_VERSION = 2
 local CACHE_KEY = "INDEXCACHE"
 local BUILD_CHUNK = 300
 local CRITERIA_CHUNK = 150
@@ -9,9 +9,16 @@ local BUILD_DELAY = 0.025
 local STEP_BUDGET = 7
 local MAX_CRITERIA_MATCHES = 10
 local FIELD_SEPARATOR = "\30"
+local TITLE_MAXWORDS = 6
+local TITLE_MINBYTES = 6
+local ITEM_CLASS_MISC = 15
+local ITEM_SUBCLASS_PET = 2
+local ITEM_SUBCLASS_MOUNT = 5
 local index = nil
 local build = nil
 local searchCache = nil
+local titleSet = nil
+local categoryTree = nil
 
 local function NewIndex()
     return {
@@ -19,6 +26,8 @@ local function NewIndex()
         ["byId"] = {},
         ["byCategory"] = {},
         ["categories"] = {},
+        ["catParents"] = {},
+        ["catOrder"] = {},
         ["requiredBy"] = {},
         ["criteriaNames"] = {},
         ["timed"] = {},
@@ -38,6 +47,7 @@ local function NeedsCriteria()
     if AchievementsUtils:IsEnabled("TABRELATED") then return true end
     if AchievementsUtils:IsEnabled("TABSUGGESTIONS") then return true end
     if AchievementsUtils:IsEnabled("AUTOTRACKTIMED") then return true end
+    if AchievementsUtils:IsEnabled("ENCOUNTER") then return true end
 
     return false
 end
@@ -77,6 +87,8 @@ local function SaveCache()
             ["ids"] = ids,
             ["cats"] = cats,
             ["catNames"] = index.categories,
+            ["catParents"] = index.catParents,
+            ["catOrder"] = index.catOrder,
             ["crit"] = index.criteriaReady == true,
             ["meta"] = index.requiredBy,
             ["timed"] = index.timed,
@@ -194,8 +206,11 @@ local function StepCategories()
             build.catPos = build.catPos + 1
             build.achTotal = nil
         elseif build.achTotal == nil then
-            build.catName = GetCategoryInfo(categoryID)
-            index.categories[categoryID] = build.catName
+            local catName, parentID = GetCategoryInfo(categoryID)
+            build.catName = catName
+            index.categories[categoryID] = catName
+            if type(parentID) == "number" then index.catParents[categoryID] = parentID end
+            tinsert(index.catOrder, categoryID)
             build.achTotal = GetCategoryNumAchievements(categoryID) or 0
             build.achPos = 0
         elseif build.achPos >= build.achTotal then
@@ -389,11 +404,14 @@ function AchievementsUtils:BuildIndex(force)
 
     if build ~= nil then return false end
     searchCache = nil
+    categoryTree = nil
     index = NewIndex()
     index.criteriaWanted = NeedsCriteria()
     local cache = LoadCache()
     if cache then
         index.categories = cache.catNames or {}
+        index.catParents = cache.catParents or {}
+        index.catOrder = cache.catOrder or {}
         build = NewBuild(cache)
         build.total = #cache.ids
     else
@@ -500,55 +518,220 @@ local function SortOpen(a, b)
     return a.name < b.name
 end
 
+local function SortByName(a, b)
+    return a.lname < b.lname
+end
+
+local function SortByPoints(a, b)
+    if a.points ~= b.points then return a.points > b.points end
+
+    return a.lname < b.lname
+end
+
+local function SortByProgress(a, b)
+    if a.completed ~= b.completed then return b.completed end
+    if a.percent ~= b.percent then return a.percent > b.percent end
+
+    return a.lname < b.lname
+end
+
+local function BuildTitleSet()
+    if titleSet ~= nil then return titleSet end
+    titleSet = {}
+    if type(GetNumTitles) ~= "function" or type(GetTitleName) ~= "function" then return titleSet end
+    local total = GetNumTitles() or 0
+    for i = 1, total do
+        local name = GetTitleName(i)
+        if type(name) == "string" then
+            local clean = string.gsub(name, "^[%s,]+", "")
+            clean = string.gsub(clean, "[%s,]+$", "")
+            clean = strtrim(clean)
+            if clean ~= "" then titleSet[string.lower(clean)] = true end
+        end
+    end
+
+    return titleSet
+end
+
+local function IsTitleReward(reward)
+    local set = BuildTitleSet()
+    local words = {}
+    for word in string.gmatch(reward, "[^%s]+") do
+        local clean = string.gsub(word, "^%p+", "")
+        clean = string.gsub(clean, "%p+$", "")
+        if clean ~= "" then tinsert(words, clean) end
+    end
+
+    local count = #words
+    for i = 1, count do
+        local span = words[i]
+        if set[span] then return true end
+        local last = math.min(count, i + TITLE_MAXWORDS - 1)
+        for j = i + 1, last do
+            span = span .. " " .. words[j]
+            if set[span] then return true end
+        end
+    end
+
+    if count > 2 then return false end
+    for name in pairs(set) do
+        if string.len(name) >= TITLE_MINBYTES and string.find(reward, name, 1, true) then return true end
+    end
+
+    return false
+end
+
+local function ClassifyItem(itemID)
+    if C_ToyBox and C_ToyBox.GetToyInfo and C_ToyBox.GetToyInfo(itemID) then return "TOY" end
+    if C_MountJournal and C_MountJournal.GetMountFromItem and C_MountJournal.GetMountFromItem(itemID) then return "MOUNT" end
+    if C_PetJournal and C_PetJournal.GetPetInfoByItemID and C_PetJournal.GetPetInfoByItemID(itemID) then return "PET" end
+    local hasInstant = type(GetItemInfoInstant) == "function" or (C_Item and type(C_Item.GetItemInfoInstant) == "function")
+    if not hasInstant then return "ITEM" end
+    local _, _, _, equipLoc, _, classID, subClassID = AchievementsUtils:GetItemInfoInstant(itemID)
+    if equipLoc == "INVTYPE_TABARD" then return "TABARD" end
+    if classID == ITEM_CLASS_MISC then
+        if subClassID == ITEM_SUBCLASS_MOUNT then return "MOUNT" end
+        if subClassID == ITEM_SUBCLASS_PET then return "PET" end
+    end
+
+    return "ITEM"
+end
+
+function AchievementsUtils:GetRewardType(entry)
+    if entry == nil then return "NONE" end
+    if entry.rewardType then return entry.rewardType end
+    local reward = entry.lreward or ""
+    if reward == "" then
+        entry.rewardType = "NONE"
+
+        return entry.rewardType
+    end
+
+    local itemID = nil
+    if C_AchievementInfo and C_AchievementInfo.GetRewardItemID then itemID = C_AchievementInfo.GetRewardItemID(entry.id) end
+    if type(itemID) == "number" and itemID > 0 then
+        entry.rewardType = ClassifyItem(itemID)
+
+        return entry.rewardType
+    end
+
+    if IsTitleReward(reward) then
+        entry.rewardType = "TITLE"
+
+        return entry.rewardType
+    end
+
+    entry.rewardType = "OTHER"
+
+    return entry.rewardType
+end
+
 function AchievementsUtils:EntryMatches(entry, needle)
     if string.find(entry.hay, needle, 1, true) then return true end
 
     return false
 end
 
-function AchievementsUtils:SearchAchievements(text, maxResults)
+local function ProgressPercent(entry)
+    if entry.completed then return 100 end
+    local done, total = AchievementsUtils:GetCriteriaProgress(entry.id)
+    if total <= 0 then return 0 end
+
+    return math.floor(done / total * 100)
+end
+
+local function CollectSource(categories)
+    local source = {}
+    for categoryID in pairs(categories) do
+        local bucket = index.byCategory[categoryID]
+        if bucket then
+            for i = 1, #bucket do
+                source[#source + 1] = bucket[i]
+            end
+        end
+    end
+
+    return source
+end
+
+function AchievementsUtils:FilterAchievements(text, filter, maxResults)
     local results = {}
     if index == nil or not index.ready then return results end
+    filter = filter or {}
     text = string.lower(strtrim(text or ""))
-    if text == "" then
+    maxResults = maxResults or 300
+    local reward = filter.reward
+    if reward == "ALL" then reward = nil end
+    local categories = AchievementsUtils:GetCategoryFilter(filter.category)
+    if text == "" and categories == nil and reward == nil then
         searchCache = nil
 
         return results
     end
 
-    maxResults = maxResults or 300
+    local plain = categories == nil and reward == nil
     local source = index.list
-    local cache = searchCache
-    if cache and cache.max == maxResults and not cache.capped then
-        local len = string.len(cache.text)
-        if string.len(text) > len and string.sub(text, 1, len) == cache.text then source = cache.list end
+    if categories then
+        source = CollectSource(categories)
+    elseif plain then
+        local cache = searchCache
+        if cache and cache.max == maxResults and not cache.capped then
+            local len = string.len(cache.text)
+            if string.len(text) > len and string.sub(text, 1, len) == cache.text then source = cache.list end
+        end
     end
 
     local exact = nil
     local asNumber = tonumber(text)
     if asNumber then
         exact = index.byId[asNumber]
-        if exact then tinsert(results, exact) end
+        if exact and (reward == nil or AchievementsUtils:GetRewardType(exact) == reward) then
+            tinsert(results, exact)
+        else
+            exact = nil
+        end
     end
 
     for i = 1, #source do
         local entry = source[i]
-        if entry ~= exact and (string.find(entry.hay, text, 1, true) or (entry.lreward ~= "" and string.find(entry.lreward, text, 1, true))) then
-            tinsert(results, entry)
+        local matches = entry ~= exact and (text == "" or string.find(entry.hay, text, 1, true) ~= nil or (entry.lreward ~= "" and string.find(entry.lreward, text, 1, true) ~= nil))
+        if matches and (reward == nil or AchievementsUtils:GetRewardType(entry) == reward) then
+            results[#results + 1] = entry
             if #results >= maxResults then break end
         end
     end
 
-    searchCache = {
-        ["text"] = text,
-        ["list"] = results,
-        ["max"] = maxResults,
-        ["capped"] = #results >= maxResults
-    }
+    if plain then
+        searchCache = {
+            ["text"] = text,
+            ["list"] = results,
+            ["max"] = maxResults,
+            ["capped"] = #results >= maxResults
+        }
+    else
+        searchCache = nil
+    end
 
-    table.sort(results, SortResults)
+    local sort = filter.sort
+    if sort == "NAME" then
+        table.sort(results, SortByName)
+    elseif sort == "POINTS" then
+        table.sort(results, SortByPoints)
+    elseif sort == "PROGRESS" then
+        for i = 1, #results do
+            results[i].percent = ProgressPercent(results[i])
+        end
+
+        table.sort(results, SortByProgress)
+    else
+        table.sort(results, SortResults)
+    end
 
     return results
+end
+
+function AchievementsUtils:SearchAchievements(text, maxResults)
+    return AchievementsUtils:FilterAchievements(text, nil, maxResults)
 end
 
 function AchievementsUtils:FindZoneAchievements(zoneName, maxResults)
@@ -661,6 +844,47 @@ function AchievementsUtils:GetCategoryName(categoryID)
     if index == nil then return nil end
 
     return index.categories[categoryID]
+end
+
+function AchievementsUtils:GetCategoryTree()
+    if categoryTree then return categoryTree end
+    if index == nil or not index.ready then return {} end
+    categoryTree = {}
+    local nodes = {}
+    for _, categoryID in ipairs(index.catOrder) do
+        nodes[categoryID] = {
+            ["id"] = categoryID,
+            ["name"] = index.categories[categoryID] or tostring(categoryID),
+            ["children"] = {}
+        }
+    end
+
+    for _, categoryID in ipairs(index.catOrder) do
+        local node = nodes[categoryID]
+        local parent = nodes[index.catParents[categoryID]]
+        if parent then
+            tinsert(parent.children, node)
+        else
+            tinsert(categoryTree, node)
+        end
+    end
+
+    return categoryTree
+end
+
+local function CollectCategories(categoryID, list)
+    list[categoryID] = true
+    for child, parent in pairs(index.catParents) do
+        if parent == categoryID and not list[child] then CollectCategories(child, list) end
+    end
+end
+
+function AchievementsUtils:GetCategoryFilter(categoryID)
+    if index == nil or type(categoryID) ~= "number" then return nil end
+    local list = {}
+    CollectCategories(categoryID, list)
+
+    return list
 end
 
 function AchievementsUtils:FindCategoryByName(name)

@@ -224,6 +224,16 @@ local function HandleSlash(msg)
         return
     end
 
+    if cmd == "bossreset" then
+        AchievementsUtils:ResetEncounterPosition()
+        return
+    end
+
+    if cmd == "boss" or string.sub(cmd, 1, 5) == "boss " then
+        AchievementsUtils:TestEncounter(strtrim(string.sub(msg, 6)))
+        return
+    end
+
     AchievementsUtils:OpenSearchTab(msg)
 end
 

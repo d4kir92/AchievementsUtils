@@ -1,6 +1,10 @@
 local _, AchievementsUtils = ...
 local ROW_HEIGHT = 26
 local HEADER_HEIGHT = 30
+local FILTER_HEIGHT = 26
+local FILTER_GAP = 4
+local FILTER_INSET = 10
+local SEARCH_MAX = 300
 local FOOTER_HEIGHT = 18
 local MAX_ROWS = 40
 local INDENT_BASE = 2
@@ -68,6 +72,64 @@ local styleChoices = {
     },
 }
 
+local sortChoices = {
+    {
+        ["value"] = "DEFAULT",
+        ["label"] = "LID_SORTDEFAULT"
+    },
+    {
+        ["value"] = "PROGRESS",
+        ["label"] = "LID_SORTPROGRESS"
+    },
+    {
+        ["value"] = "NAME",
+        ["label"] = "LID_SORTNAME"
+    },
+    {
+        ["value"] = "POINTS",
+        ["label"] = "LID_SORTPOINTS"
+    },
+}
+
+local rewardChoices = {
+    {
+        ["value"] = "ALL",
+        ["label"] = "LID_ALLREWARDS"
+    },
+    {
+        ["value"] = "TITLE",
+        ["label"] = "LID_REWARDTITLE"
+    },
+    {
+        ["value"] = "MOUNT",
+        ["label"] = "LID_REWARDMOUNT"
+    },
+    {
+        ["value"] = "PET",
+        ["label"] = "LID_REWARDPET"
+    },
+    {
+        ["value"] = "TOY",
+        ["label"] = "LID_REWARDTOY"
+    },
+    {
+        ["value"] = "TABARD",
+        ["label"] = "LID_REWARDTABARD"
+    },
+    {
+        ["value"] = "ITEM",
+        ["label"] = "LID_REWARDITEM"
+    },
+    {
+        ["value"] = "OTHER",
+        ["label"] = "LID_REWARDOTHER"
+    },
+    {
+        ["value"] = "NONE",
+        ["label"] = "LID_REWARDNONE"
+    },
+}
+
 local tabDefs = {
     {
         ["key"] = "TABSEARCH",
@@ -90,6 +152,10 @@ local tabDefs = {
 local panel = nil
 local blizzardHooked = false
 local searchBox = nil
+local filterBar = nil
+local sortButton = nil
+local categoryButton = nil
+local rewardButton = nil
 local statusText = nil
 local scrollBar = nil
 local scrollUpdating = false
@@ -114,12 +180,58 @@ local lastSubZone = nil
 local selectedAchievement = nil
 local searchPending = false
 local restored = false
+local Refresh = nil
 function AchievementsUtils:GetAchStyleChoices()
     return styleChoices
 end
 
 local function IsPlaqueStyle()
     return AchievementsUtils:GetOption("ACHSTYLE") ~= "COMPACT"
+end
+
+local function FiltersShown()
+    return activeTab == "TABSEARCH" and AchievementsUtils:IsEnabled("TABFILTERS")
+end
+
+local function TopInset()
+    if FiltersShown() then return HEADER_HEIGHT + FILTER_HEIGHT end
+
+    return HEADER_HEIGHT
+end
+
+local function GetFilterValue(key, default)
+    return AchievementsUtils:GV(AchievementsUtils:GetDB(), key, default)
+end
+
+local function SetFilterValue(key, value)
+    AchievementsUtils:SV(AchievementsUtils:GetDB(), key, value)
+end
+
+local function CurrentFilter()
+    if not FiltersShown() then
+        return {
+            ["sort"] = "DEFAULT"
+        }
+    end
+
+    local reward = GetFilterValue("SEARCHREWARD", "ALL")
+    if reward == "ALL" then reward = nil end
+    local category = GetFilterValue("SEARCHCATEGORY", nil)
+    if type(category) ~= "number" then category = nil end
+
+    return {
+        ["sort"] = GetFilterValue("SEARCHSORT", "DEFAULT"),
+        ["category"] = category,
+        ["reward"] = reward
+    }
+end
+
+local function ChoiceLabel(choices, value)
+    for _, choice in ipairs(choices) do
+        if choice.value == value then return AchievementsUtils:Trans(choice.label) end
+    end
+
+    return AchievementsUtils:Trans(choices[1].label)
 end
 
 local function ItemHeight(item)
@@ -140,7 +252,7 @@ local function GetListHeight()
     if panel == nil then return 0 end
     local height = panel:GetHeight()
     if height == nil or height <= 0 then return ROW_HEIGHT * 10 end
-    return height - HEADER_HEIGHT - FOOTER_HEIGHT
+    return height - TopInset() - FOOTER_HEIGHT
 end
 
 local function CountFrom(startIndex, step)
@@ -317,13 +429,15 @@ end
 local function BuildSearch()
     local text = ""
     if searchBox then text = searchBox:GetText() end
-    if strtrim(text or "") == "" then
+    local filter = CurrentFilter()
+    if strtrim(text or "") == "" and filter.category == nil and filter.reward == nil then
         AddInfo(AchievementsUtils:Trans("LID_SEARCHHINT"))
+
         return
     end
 
     local seen = {}
-    local results = AchievementsUtils:SearchAchievements(text, 300)
+    local results = AchievementsUtils:FilterAchievements(text, filter, SEARCH_MAX)
     for _, entry in ipairs(results) do
         AddItem(entry.id, seen)
     end
@@ -801,7 +915,7 @@ local function UpdateRows()
         if row and i > visible then row:Hide() end
     end
 
-    local top = HEADER_HEIGHT
+    local top = TopInset()
     for i = 1, visible do
         local row = rows[i]
         if row == nil then break end
@@ -954,7 +1068,7 @@ local function PollIndex()
     C_Timer.After(INDEX_POLL_DELAY, PollIndex)
 end
 
-local function Refresh()
+Refresh = function()
     if panel == nil then return end
     suggestJob = nil
     wipe(items)
@@ -1073,6 +1187,13 @@ local function ScrollToPercent(percent)
     UpdateRows()
 end
 
+local function AnchorScrollBar()
+    if scrollBar == nil then return end
+    scrollBar:ClearAllPoints()
+    scrollBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -TopInset())
+    scrollBar:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -4, FOOTER_HEIGHT)
+end
+
 local function CreateModernScrollBar()
     if not AchievementsUtils:CheckTemplates("MinimalScrollBar") then return nil end
     if type(ScrollBarMixin) ~= "table" then return nil end
@@ -1153,6 +1274,171 @@ local function SetPanelBackground(texture)
     end
 end
 
+local function LayoutFilterBar()
+    if filterBar == nil or panel == nil then return end
+    local width = panel:GetWidth() or 0
+    if width <= 0 then return end
+    local usable = width - FILTER_INSET * 2 - FILTER_GAP * 2
+    local each = math.floor(usable / 3)
+    if each < 60 then each = 60 end
+    sortButton:SetWidth(each)
+    categoryButton:SetWidth(each)
+    rewardButton:SetWidth(each)
+end
+
+local function UpdateFilterButtons()
+    if filterBar == nil then return end
+    sortButton:SetText(AchievementsUtils:Trans("LID_SORT") .. ": " .. ChoiceLabel(sortChoices, GetFilterValue("SEARCHSORT", "DEFAULT")))
+    local categoryID = GetFilterValue("SEARCHCATEGORY", nil)
+    local categoryName = nil
+    if type(categoryID) == "number" then categoryName = AchievementsUtils:GetCategoryName(categoryID) end
+    if categoryName == nil or categoryName == "" then categoryName = AchievementsUtils:Trans("LID_ALLCATEGORIES") end
+    categoryButton:SetText(AchievementsUtils:Trans("LID_CATEGORY") .. ": " .. categoryName)
+    rewardButton:SetText(AchievementsUtils:Trans("LID_REWARD") .. ": " .. ChoiceLabel(rewardChoices, GetFilterValue("SEARCHREWARD", "ALL")))
+end
+
+local function UpdateFilterBar()
+    if filterBar == nil then return end
+    if FiltersShown() then
+        filterBar:Show()
+        LayoutFilterBar()
+        UpdateFilterButtons()
+    else
+        filterBar:Hide()
+    end
+
+    AnchorScrollBar()
+end
+
+local function ApplyFilterChange()
+    offset = 0
+    UpdateFilterBar()
+    Refresh()
+end
+
+local function ChoiceEntries(choices, key, titleKey)
+    local entries = {}
+    local current = GetFilterValue(key, choices[1].value)
+    tinsert(
+        entries,
+        {
+            ["kind"] = "title",
+            ["text"] = AchievementsUtils:Trans(titleKey)
+        }
+    )
+
+    tinsert(entries, {["kind"] = "separator"})
+    for _, choice in ipairs(choices) do
+        local value = choice.value
+        local selected = value == current
+        tinsert(
+            entries,
+            {
+                ["kind"] = "button",
+                ["text"] = AchievementsUtils:Trans(choice.label),
+                ["check"] = selected,
+                ["current"] = selected,
+                ["func"] = function()
+                    SetFilterValue(key, value)
+                    ApplyFilterChange()
+                end
+            }
+        )
+    end
+
+    return entries
+end
+
+local AddCategoryNode = nil
+AddCategoryNode = function(entries, node, current)
+    local selected = current == node.id
+    local entry = {
+        ["kind"] = "button",
+        ["text"] = node.name,
+        ["check"] = selected,
+        ["current"] = selected,
+        ["func"] = function()
+            SetFilterValue("SEARCHCATEGORY", node.id)
+            ApplyFilterChange()
+        end
+    }
+
+    if #node.children <= 0 then
+        tinsert(entries, entry)
+
+        return
+    end
+
+    local sub = {entry, {["kind"] = "separator"}}
+    for _, child in ipairs(node.children) do
+        AddCategoryNode(sub, child, current)
+    end
+
+    tinsert(
+        entries,
+        {
+            ["kind"] = "submenu",
+            ["text"] = node.name,
+            ["current"] = selected,
+            ["entries"] = sub
+        }
+    )
+end
+
+local function CategoryEntries()
+    local entries = {}
+    local current = GetFilterValue("SEARCHCATEGORY", nil)
+    if type(current) ~= "number" then current = nil end
+    tinsert(
+        entries,
+        {
+            ["kind"] = "title",
+            ["text"] = AchievementsUtils:Trans("LID_CATEGORY")
+        }
+    )
+
+    tinsert(entries, {["kind"] = "separator"})
+    tinsert(
+        entries,
+        {
+            ["kind"] = "button",
+            ["text"] = AchievementsUtils:Trans("LID_ALLCATEGORIES"),
+            ["check"] = current == nil,
+            ["current"] = current == nil,
+            ["func"] = function()
+                SetFilterValue("SEARCHCATEGORY", nil)
+                ApplyFilterChange()
+            end
+        }
+    )
+
+    for _, node in ipairs(AchievementsUtils:GetCategoryTree()) do
+        AddCategoryNode(entries, node, current)
+    end
+
+    return entries
+end
+
+local function CreateFilterBar()
+    filterBar = CreateFrame("Frame", "AchievementsUtilsFilterBar", panel)
+    filterBar:SetHeight(FILTER_HEIGHT)
+    filterBar:SetPoint("TOPLEFT", panel, "TOPLEFT", FILTER_INSET, -HEADER_HEIGHT)
+    filterBar:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -FILTER_INSET, -HEADER_HEIGHT)
+    sortButton = AchievementsUtils:CreateButton("AchievementsUtilsSortButton", filterBar)
+    sortButton:SetHeight(FILTER_HEIGHT - 4)
+    sortButton:SetPoint("LEFT", filterBar, "LEFT", 0, 0)
+    sortButton:SetScript("OnClick", function(sel) AchievementsUtils:ShowDropdown(ChoiceEntries(sortChoices, "SEARCHSORT", "LID_SORT"), sel) end)
+    categoryButton = AchievementsUtils:CreateButton("AchievementsUtilsCategoryButton", filterBar)
+    categoryButton:SetHeight(FILTER_HEIGHT - 4)
+    categoryButton:SetPoint("LEFT", sortButton, "RIGHT", FILTER_GAP, 0)
+    categoryButton:SetScript("OnClick", function(sel) AchievementsUtils:ShowDropdown(CategoryEntries(), sel) end)
+    rewardButton = AchievementsUtils:CreateButton("AchievementsUtilsRewardButton", filterBar)
+    rewardButton:SetHeight(FILTER_HEIGHT - 4)
+    rewardButton:SetPoint("LEFT", categoryButton, "RIGHT", FILTER_GAP, 0)
+    rewardButton:SetScript("OnClick", function(sel) AchievementsUtils:ShowDropdown(ChoiceEntries(rewardChoices, "SEARCHREWARD", "LID_REWARD"), sel) end)
+    filterBar:Hide()
+end
+
 local function CreatePanel()
     if panel ~= nil then return end
     if type(AchievementFrame) ~= "table" then return end
@@ -1202,12 +1488,20 @@ local function CreatePanel()
         end)
     end)
 
+    CreateFilterBar()
     statusText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     statusText:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 8, 4)
     statusText:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -8, 4)
     statusText:SetJustifyH("LEFT")
     scrollBar = CreateScrollBar()
     scrollBar:Hide()
+    panel:SetScript(
+        "OnSizeChanged",
+        function()
+            LayoutFilterBar()
+        end
+    )
+
     for i = 1, MAX_ROWS do
         rows[i] = CreateRow(panel, i)
         rows[i]:Hide()
@@ -1275,7 +1569,9 @@ end
 function AchievementsUtils:HideExtraTab()
     if activeTab == nil then return end
     activeTab = nil
+    AchievementsUtils:HideAchievementMenu()
     if panel then panel:Hide() end
+    if filterBar then filterBar:Hide() end
     UpdateTabVisuals()
     RestoreBlizzardTabs()
     SaveState()
@@ -1285,6 +1581,7 @@ function AchievementsUtils:ShowExtraTab(key)
     if not AchievementsUtils:IsEnabled(key) then return end
     CreatePanel()
     if panel == nil then return end
+    AchievementsUtils:HideAchievementMenu()
     activeTab = key
     offset = 0
     RaisePanel()
@@ -1298,6 +1595,7 @@ function AchievementsUtils:ShowExtraTab(key)
         searchBox:Hide()
     end
 
+    UpdateFilterBar()
     UpdateTabVisuals()
     DeselectBlizzardTabs()
     AchievementsUtils:BuildIndex()
@@ -1507,6 +1805,13 @@ AchievementsUtils:OnOptionChanged("ACHSTYLE", function()
     if activeTab == nil then return end
     offset = 0
     UpdateRows()
+end)
+
+AchievementsUtils:OnOptionChanged("TABFILTERS", function()
+    if activeTab ~= "TABSEARCH" then return end
+    offset = 0
+    UpdateFilterBar()
+    Refresh()
 end)
 
 AchievementsUtils:OnOptionChanged("WATCHLIST", function()

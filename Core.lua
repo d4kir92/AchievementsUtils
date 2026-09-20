@@ -130,6 +130,13 @@ local options = {
         ["default"] = true
     },
     {
+        ["key"] = "TABFILTERS",
+        ["kind"] = "toggle",
+        ["label"] = "LID_TABFILTERS",
+        ["parent"] = "TABSEARCH",
+        ["default"] = true
+    },
+    {
         ["key"] = "ACHSTYLE",
         ["kind"] = "dropdown",
         ["label"] = "LID_ACHSTYLE",
@@ -293,6 +300,79 @@ local options = {
         ["label"] = "LID_REMINDERSOUNDID",
         ["parent"] = "REMINDERSOUND",
         ["default"] = "RAID_WARNING"
+    },
+    {
+        ["key"] = "CATENCOUNTER",
+        ["kind"] = "category",
+        ["label"] = "LID_ENCOUNTER"
+    },
+    {
+        ["key"] = "ENCOUNTER",
+        ["kind"] = "toggle",
+        ["label"] = "LID_ENABLEENCOUNTER",
+        ["needsIndex"] = true,
+        ["default"] = true
+    },
+    {
+        ["key"] = "ENCOUNTERPROGRESS",
+        ["kind"] = "toggle",
+        ["label"] = "LID_ENCOUNTERPROGRESS",
+        ["parent"] = "ENCOUNTER",
+        ["default"] = true
+    },
+    {
+        ["key"] = "ENCOUNTERRESULT",
+        ["kind"] = "toggle",
+        ["label"] = "LID_ENCOUNTERRESULT",
+        ["parent"] = "ENCOUNTER",
+        ["default"] = true
+    },
+    {
+        ["key"] = "ENCOUNTERDONE",
+        ["kind"] = "toggle",
+        ["label"] = "LID_ENCOUNTERDONE",
+        ["parent"] = "ENCOUNTER",
+        ["default"] = false
+    },
+    {
+        ["key"] = "ENCOUNTERMOVABLE",
+        ["kind"] = "toggle",
+        ["label"] = "LID_ENCOUNTERMOVABLE",
+        ["parent"] = "ENCOUNTER",
+        ["default"] = false
+    },
+    {
+        ["key"] = "ENCOUNTERMAX",
+        ["kind"] = "slider",
+        ["label"] = "LID_ENCOUNTERMAX",
+        ["parent"] = "ENCOUNTER",
+        ["default"] = 5,
+        ["min"] = 1,
+        ["max"] = 12,
+        ["step"] = 1,
+        ["decimals"] = 0
+    },
+    {
+        ["key"] = "ENCOUNTERHIDE",
+        ["kind"] = "slider",
+        ["label"] = "LID_ENCOUNTERHIDE",
+        ["parent"] = "ENCOUNTER",
+        ["default"] = 15,
+        ["min"] = 3,
+        ["max"] = 60,
+        ["step"] = 1,
+        ["decimals"] = 0
+    },
+    {
+        ["key"] = "ENCOUNTERSCALE",
+        ["kind"] = "slider",
+        ["label"] = "LID_ENCOUNTERSCALE",
+        ["parent"] = "ENCOUNTER",
+        ["default"] = 1,
+        ["min"] = 0.6,
+        ["max"] = 2,
+        ["step"] = 0.05,
+        ["decimals"] = 2
     },
     {
         ["key"] = "CATAUTOTRACK",

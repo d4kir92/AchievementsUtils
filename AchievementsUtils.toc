@@ -62,4 +62,5 @@ Menu.lua
 Tabs.lua
 Reminders.lua
 AutoTrack.lua
+Encounter.lua
 Settings.lua

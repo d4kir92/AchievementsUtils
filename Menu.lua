@@ -25,9 +25,12 @@ local MENU_BACKDROP = {
     }
 }
 
+local TOGGLE_GUARD = 0.25
 local menus = {}
 local catcher = nil
 local hasGlobalMouse = nil
+local lastOwner = nil
+local lastClosed = 0
 local ShowMenu = nil
 local function HideFrom(level)
     for i = #menus, level, -1 do
@@ -37,6 +40,12 @@ local function HideFrom(level)
 end
 
 function AchievementsUtils:HideAchievementMenu()
+    local menu = menus[1]
+    if menu and menu:IsShown() and menu.auOwner then
+        lastOwner = menu.auOwner
+        lastClosed = GetTime()
+    end
+
     HideFrom(1)
     if catcher then catcher:Hide() end
 end
@@ -263,6 +272,7 @@ local function GetMenu(level)
             if level == 1 then
                 if CheckGlobalMouse(sel) then sel:UnregisterEvent("GLOBAL_MOUSE_DOWN") end
                 if catcher then catcher:Hide() end
+                sel.auOwner = nil
             end
 
             HideFrom(level + 1)
@@ -275,12 +285,14 @@ local function GetMenu(level)
     return menu
 end
 
-ShowMenu = function(level, entries, row)
+ShowMenu = function(level, entries, row, below)
     local menu = GetMenu(level)
     HideFrom(level + 1)
     FillMenu(menu, entries, level)
     menu:ClearAllPoints()
-    if row then
+    if below and row then
+        menu:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 0, -2)
+    elseif row then
         menu:SetPoint("TOPLEFT", row, "TOPRIGHT", 2, 6)
     else
         local scale = UIParent:GetEffectiveScale()
@@ -411,6 +423,25 @@ local function BuildEntries(id, owner)
     end
 
     return entries
+end
+
+function AchievementsUtils:ShowDropdown(entries, owner)
+    if type(entries) ~= "table" or #entries <= 0 then return false end
+    if lastOwner == owner and GetTime() - lastClosed < TOGGLE_GUARD then
+        lastOwner = nil
+
+        return true
+    end
+
+    local menu = GetMenu(1)
+    AchievementsUtils:HideAchievementMenu()
+    if type(GameTooltip) == "table" and GameTooltip:IsShown() then GameTooltip:Hide() end
+    if not CheckGlobalMouse(menu) then CreateCatcher():Show() end
+    ShowMenu(1, entries, owner, true)
+    menu.auOwner = owner
+    lastOwner = nil
+
+    return true
 end
 
 function AchievementsUtils:ShowAchievementMenu(id, owner)
