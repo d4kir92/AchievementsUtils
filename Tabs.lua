@@ -1146,7 +1146,7 @@ local function RowOnEnter(sel)
     if sel.id == nil then return end
     local ach = AchievementsUtils:GetAchievement(sel.id)
     if ach == nil then return end
-    GameTooltip:SetOwner(sel, "ANCHOR_RIGHT")
+    if not AchievementsUtils:OwnGameTooltip(sel, "ANCHOR_RIGHT") then return end
     GameTooltip:SetText(ach.name, 1, 1, 1)
     if ach.description ~= "" then GameTooltip:AddLine(ach.description, 1, 0.82, 0, true) end
     if ach.reward ~= "" then GameTooltip:AddLine(ach.reward, 0.1, 1, 0.1, true) end

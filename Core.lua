@@ -19,6 +19,10 @@ local optionList = {}
 local optionByKey = {}
 local optionCallbacks = {}
 local eventHandlers = {}
+local tooltipShownCallbacks = {}
+local tooltipHiddenCallbacks = {}
+local tooltipOwner = nil
+local tooltipVisible = false
 local hasAchievementAPI = nil
 local trackingType = nil
 if Enum and Enum.ContentTrackingType then trackingType = Enum.ContentTrackingType.Achievement end
@@ -464,6 +468,49 @@ function AchievementsUtils:HideGameTooltip()
     if AchievementsUtils:HasWidgetSet(GameTooltip) then return end
     GameTooltip:Hide()
 end
+
+function AchievementsUtils:OwnGameTooltip(owner, anchor)
+    if type(GameTooltip) ~= "table" then return false end
+    if type(owner) ~= "table" then return false end
+    if AchievementsUtils:HasWidgetSet(GameTooltip) then return false end
+    GameTooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
+
+    return true
+end
+
+function AchievementsUtils:OnGameTooltipShown(callback)
+    tinsert(tooltipShownCallbacks, callback)
+end
+
+function AchievementsUtils:OnGameTooltipHidden(callback)
+    tinsert(tooltipHiddenCallbacks, callback)
+end
+
+local function FireTooltipHidden()
+    tooltipVisible = false
+    tooltipOwner = nil
+    for _, callback in ipairs(tooltipHiddenCallbacks) do
+        callback(GameTooltip)
+    end
+end
+
+local tooltipWatcher = CreateFrame("Frame", "AchievementsUtilsTooltipWatcher")
+tooltipWatcher:SetScript("OnUpdate", function()
+    if type(GameTooltip) ~= "table" then return end
+    if not GameTooltip:IsShown() then
+        if tooltipVisible then FireTooltipHidden() end
+
+        return
+    end
+
+    local owner = GameTooltip:GetOwner()
+    if tooltipVisible and owner ~= tooltipOwner then FireTooltipHidden() end
+    tooltipVisible = true
+    tooltipOwner = owner
+    for _, callback in ipairs(tooltipShownCallbacks) do
+        callback(GameTooltip)
+    end
+end)
 
 function AchievementsUtils:GetAddonName()
     return ADDON

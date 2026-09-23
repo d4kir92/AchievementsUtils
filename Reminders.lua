@@ -158,6 +158,7 @@ local function Guarded(callback, tooltip, ...)
     if working then return end
     if not AchievementsUtils:IsEnabled("REMINDERS") then return end
     if tooltip ~= GameTooltip then return end
+    if AchievementsUtils:HasWidgetSet(tooltip) then return end
     working = true
     callback(tooltip, ...)
     working = false
@@ -197,15 +198,13 @@ else
     )
 end
 
-GameTooltip:HookScript(
-    "OnShow",
+AchievementsUtils:OnGameTooltipShown(
     function(tooltip)
         Guarded(HandleObject, tooltip)
     end
 )
 
-GameTooltip:HookScript(
-    "OnHide",
+AchievementsUtils:OnGameTooltipHidden(
     function(tooltip)
         tooltip.auReminder = nil
     end

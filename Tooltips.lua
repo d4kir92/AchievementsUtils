@@ -482,8 +482,8 @@ local function InstallTooltipHooks()
     if type(_G["AchievementButton_OnLeave"]) == "function" then hooksecurefunc("AchievementButton_OnLeave", function() HideOwnTooltip() end) end
 end
 
-GameTooltip:HookScript("OnShow", OnTooltipShow)
-GameTooltip:HookScript("OnHide", OnTooltipHide)
+AchievementsUtils:OnGameTooltipShown(OnTooltipShow)
+AchievementsUtils:OnGameTooltipHidden(OnTooltipHide)
 AchievementsUtils:OnAchievementUIReady(InstallTooltipHooks)
 
 local function GetTrackerBlockID(block)

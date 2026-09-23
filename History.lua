@@ -217,7 +217,7 @@ local function ToggleMenu(anchor)
 end
 
 local function ButtonOnEnter(sel)
-    GameTooltip:SetOwner(sel, "ANCHOR_RIGHT")
+    if not AchievementsUtils:OwnGameTooltip(sel, "ANCHOR_RIGHT") then return end
     GameTooltip:SetText(AchievementsUtils:Trans(sel.auLabel), 1, 1, 1)
     GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKHISTORY"), 0.6, 0.6, 0.6)
     GameTooltip:Show()
