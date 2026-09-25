@@ -414,9 +414,9 @@ local function ShowOwnTooltip(owner, id)
     if AchievementsUtils:HasWidgetSet(GameTooltip) then return end
     local ach = AchievementsUtils:GetAchievement(id)
     if ach == nil then return end
+    if not AchievementsUtils:OwnGameTooltip(owner, "ANCHOR_RIGHT") then return end
     adding = true
     ReleaseBars(GameTooltip)
-    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     GameTooltip:SetText(AchievementsUtils:ColorByStatus(ach.name, ach.completed), 1, 1, 1)
     if ach.description and ach.description ~= "" then GameTooltip:AddLine(ach.description, 1, 1, 1, true) end
     local lines = BuildLines(id)

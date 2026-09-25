@@ -23,6 +23,7 @@ local tooltipShownCallbacks = {}
 local tooltipHiddenCallbacks = {}
 local tooltipOwner = nil
 local tooltipVisible = false
+local tooltipCallbacksNeedReset = false
 local hasAchievementAPI = nil
 local trackingType = nil
 if Enum and Enum.ContentTrackingType then trackingType = Enum.ContentTrackingType.Achievement end
@@ -451,15 +452,10 @@ function AchievementsUtils:HasWidgetSet(tooltip)
     if type(tooltip) ~= "table" then return false end
     local container = tooltip.widgetContainer
     if type(container) ~= "table" then return false end
-    if type(container.IsRegisteredForWidgetSet) ~= "function" then return false end
-    if not container:IsRegisteredForWidgetSet() then return false end
-    local frames = container.widgetFrames
-    if type(frames) ~= "table" then return false end
-    for _ in pairs(frames) do
-        return true
-    end
+    local widgetSetID = container.widgetSetID
+    if AchievementsUtils:IsSecret(widgetSetID) then return true end
 
-    return false
+    return widgetSetID ~= nil
 end
 
 function AchievementsUtils:HideGameTooltip()
@@ -498,9 +494,25 @@ local tooltipWatcher = CreateFrame("Frame", "AchievementsUtilsTooltipWatcher")
 tooltipWatcher:SetScript("OnUpdate", function()
     if type(GameTooltip) ~= "table" then return end
     if not GameTooltip:IsShown() then
-        if tooltipVisible then FireTooltipHidden() end
+        if tooltipVisible or tooltipCallbacksNeedReset then
+            tooltipCallbacksNeedReset = false
+            FireTooltipHidden()
+        end
 
         return
+    end
+
+    if AchievementsUtils:HasWidgetSet(GameTooltip) then
+        tooltipCallbacksNeedReset = true
+        tooltipVisible = false
+        tooltipOwner = nil
+
+        return
+    end
+
+    if tooltipCallbacksNeedReset then
+        tooltipCallbacksNeedReset = false
+        FireTooltipHidden()
     end
 
     local owner = GameTooltip:GetOwner()
