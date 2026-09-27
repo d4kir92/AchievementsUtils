@@ -444,10 +444,6 @@ for _, info in ipairs(options) do
     optionByKey[info.key] = info
 end
 
-function AchievementsUtils:IsSecret(value)
-    return issecretvalue ~= nil and issecretvalue(value) == true
-end
-
 function AchievementsUtils:HasWidgetSet(tooltip)
     if type(tooltip) ~= "table" then return false end
     local container = tooltip.widgetContainer
