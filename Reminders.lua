@@ -42,7 +42,7 @@ local function PlayReminderSound()
     PlaySound(soundID)
 end
 
-local function AddLines(tooltip, name)
+local function AddLines(tooltip, name, quiet)
     if AchievementsUtils:IsSecret(name) then return false end
     if name == nil or name == "" then return false end
     local list = AchievementsUtils:FindByCriteriaName(name)
@@ -70,13 +70,21 @@ local function AddLines(tooltip, name)
     end
 
     if shown <= 0 then return false end
-    if needed then PlayReminderSound() end
+    if needed and not quiet then PlayReminderSound() end
 
     return true
 end
 
-local function Finish(tooltip, changed)
-    if changed then tooltip:Show() end
+local function Finish(tooltip, changed, fresh)
+    if changed and not fresh then tooltip:Show() end
+end
+
+local function Remember(tooltip, name, fresh)
+    local known = tooltip.auReminder == name
+    tooltip.auReminder = name
+    if fresh then return true, known end
+
+    return not known, known
 end
 
 local function GetTooltipName()
@@ -89,7 +97,7 @@ local function GetTooltipName()
     return name
 end
 
-local function HandleUnit(tooltip, unit)
+local function HandleUnit(tooltip, fresh, unit)
     if not AchievementsUtils:IsEnabled("REMINDERUNITS") then return end
     local secret = AchievementsUtils:IsSecret(unit)
     if not secret and unit == nil then return end
@@ -102,29 +110,29 @@ local function HandleUnit(tooltip, unit)
 
     if AchievementsUtils:IsSecret(name) then return end
     if name == nil or name == "" then return end
-    if tooltip.auReminder == name then return end
-    tooltip.auReminder = name
-    local changed = AddLines(tooltip, name)
+    local add, known = Remember(tooltip, name, fresh)
+    if not add then return end
+    local changed = AddLines(tooltip, name, known)
     if not secret and AchievementsUtils:IsEnabled("REMINDERCLASSES") and UnitIsPlayer(unit) then
         local className = UnitClass(unit)
-        if not AchievementsUtils:IsSecret(className) and AddLines(tooltip, className) then changed = true end
+        if not AchievementsUtils:IsSecret(className) and AddLines(tooltip, className, known) then changed = true end
     end
 
-    Finish(tooltip, changed)
+    Finish(tooltip, changed, fresh)
 end
 
-local function HandleItem(tooltip)
+local function HandleItem(tooltip, fresh)
     if not AchievementsUtils:IsEnabled("REMINDERITEMS") then return end
     if tooltip.GetItem == nil then return end
     local name = tooltip:GetItem()
     if AchievementsUtils:IsSecret(name) then return end
     if name == nil or name == "" then return end
-    if tooltip.auReminder == name then return end
-    tooltip.auReminder = name
-    Finish(tooltip, AddLines(tooltip, name))
+    local add, known = Remember(tooltip, name, fresh)
+    if not add then return end
+    Finish(tooltip, AddLines(tooltip, name, known), fresh)
 end
 
-local function HandleObject(tooltip)
+local function HandleObject(tooltip, fresh)
     if not AchievementsUtils:IsEnabled("REMINDEROBJECTS") then return end
     if tooltip.GetUnit then
         local _, unit = tooltip:GetUnit()
@@ -149,9 +157,9 @@ local function HandleObject(tooltip)
     local name = line:GetText()
     if AchievementsUtils:IsSecret(name) then return end
     if name == nil or name == "" then return end
-    if tooltip.auReminder == name then return end
-    tooltip.auReminder = name
-    Finish(tooltip, AddLines(tooltip, name))
+    local add, known = Remember(tooltip, name, fresh)
+    if not add then return end
+    Finish(tooltip, AddLines(tooltip, name, known), fresh)
 end
 
 local function Guarded(callback, tooltip, ...)
@@ -164,45 +172,58 @@ local function Guarded(callback, tooltip, ...)
     working = false
 end
 
+local objectPostCall = false
 if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
     TooltipDataProcessor.AddTooltipPostCall(
         Enum.TooltipDataType.Unit,
         function(tooltip)
             if tooltip == nil or tooltip.GetUnit == nil then return end
             local _, unit = tooltip:GetUnit()
-            Guarded(HandleUnit, tooltip, unit)
+            Guarded(HandleUnit, tooltip, true, unit)
         end
     )
 
     TooltipDataProcessor.AddTooltipPostCall(
         Enum.TooltipDataType.Item,
         function(tooltip)
-            Guarded(HandleItem, tooltip)
+            Guarded(HandleItem, tooltip, true)
         end
     )
+
+    if Enum.TooltipDataType.Object ~= nil then
+        objectPostCall = true
+        TooltipDataProcessor.AddTooltipPostCall(
+            Enum.TooltipDataType.Object,
+            function(tooltip)
+                Guarded(HandleObject, tooltip, true)
+            end
+        )
+    end
 else
     GameTooltip:HookScript(
         "OnTooltipSetUnit",
         function(tooltip)
             if tooltip.GetUnit == nil then return end
             local _, unit = tooltip:GetUnit()
-            Guarded(HandleUnit, tooltip, unit)
+            Guarded(HandleUnit, tooltip, false, unit)
         end
     )
 
     GameTooltip:HookScript(
         "OnTooltipSetItem",
         function(tooltip)
-            Guarded(HandleItem, tooltip)
+            Guarded(HandleItem, tooltip, false)
         end
     )
 end
 
-AchievementsUtils:OnGameTooltipShown(
-    function(tooltip)
-        Guarded(HandleObject, tooltip)
-    end
-)
+if not objectPostCall then
+    AchievementsUtils:OnGameTooltipShown(
+        function(tooltip)
+            Guarded(HandleObject, tooltip, false)
+        end
+    )
+end
 
 AchievementsUtils:OnGameTooltipHidden(
     function(tooltip)

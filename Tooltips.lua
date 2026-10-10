@@ -340,7 +340,7 @@ local function AddBar(tooltip, line)
     local sample = _G[name .. "TextLeft2"]
     if sample == nil then return false end
     local textHeight = sample:GetHeight()
-    if type(textHeight) ~= "number" or textHeight <= 0 then textHeight = 12 end
+    if AchievementsUtils:IsSecret(textHeight) or type(textHeight) ~= "number" or textHeight <= 0 then textHeight = 12 end
     local needed = math.ceil((BAR_HEIGHT + BAR_SPACING) / (textHeight + BAR_SPACING))
     if needed < 1 then needed = 1 end
     local anchorLine = tooltip:NumLines() + 1
@@ -411,44 +411,47 @@ local function ShowOwnTooltip(owner, id)
     if adding then return end
     if type(owner) ~= "table" or type(id) ~= "number" then return end
     if not AchievementsUtils:IsEnabled("ACHTOOLTIP") then return end
-    if AchievementsUtils:HasWidgetSet(GameTooltip) then return end
     local ach = AchievementsUtils:GetAchievement(id)
     if ach == nil then return end
-    if not AchievementsUtils:OwnGameTooltip(owner, "ANCHOR_RIGHT") then return end
+    if type(GameTooltip) == "table" and GameTooltip:IsOwned(owner) then AchievementsUtils:HideGameTooltip() end
+    local tooltip = AchievementsUtils:ShowAddonTooltip(owner, "ANCHOR_RIGHT")
+    if tooltip == nil then return end
     adding = true
-    ReleaseBars(GameTooltip)
-    GameTooltip:SetText(AchievementsUtils:ColorByStatus(ach.name, ach.completed), 1, 1, 1)
-    if ach.description and ach.description ~= "" then GameTooltip:AddLine(ach.description, 1, 1, 1, true) end
+    ReleaseBars(tooltip)
+    tooltip:SetText(AchievementsUtils:ColorByStatus(ach.name, ach.completed), 1, 1, 1)
+    if ach.description and ach.description ~= "" then tooltip:AddLine(ach.description, 1, 1, 1, true) end
     local lines = BuildLines(id)
     if #lines > 0 then
-        GameTooltip:AddLine(" ")
-        RenderLines(GameTooltip, lines)
+        tooltip:AddLine(" ")
+        RenderLines(tooltip, lines)
     end
 
     if AchievementsUtils:IsEnabled("CONTEXTMENU") then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKMENU"), 0.6, 0.6, 0.6)
+        tooltip:AddLine(" ")
+        tooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKMENU"), 0.6, 0.6, 0.6)
     elseif AchievementsUtils:IsEnabled("TABWATCH") then
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKWATCH"), 0.6, 0.6, 0.6)
+        tooltip:AddLine(" ")
+        tooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKWATCH"), 0.6, 0.6, 0.6)
     end
 
-    GameTooltip.auAchievement = id
-    GameTooltip:Show()
+    tooltip.auAchievement = id
+    tooltip:Show()
     adding = false
 end
 
 function AchievementsUtils:RefreshAchievementTooltip(owner, id)
     if type(owner) ~= "table" or type(id) ~= "number" then return end
-    if GameTooltip.auAchievement ~= id then return end
-    GameTooltip.auAchievement = nil
+    local tooltip = AchievementsUtils:GetAddonTooltip()
+    if not tooltip:IsShown() or tooltip.auAchievement ~= id then return end
+    tooltip.auAchievement = nil
     ShowOwnTooltip(owner, id)
 end
 
 local function HideOwnTooltip()
-    if GameTooltip.auAchievement == nil then return end
-    GameTooltip.auAchievement = nil
-    AchievementsUtils:HideGameTooltip()
+    local tooltip = AchievementsUtils:GetAddonTooltip()
+    if tooltip.auAchievement == nil then return end
+    tooltip.auAchievement = nil
+    AchievementsUtils:HideAddonTooltip()
 end
 
 local function InstallTooltipHooks()

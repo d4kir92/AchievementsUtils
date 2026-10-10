@@ -1146,25 +1146,26 @@ local function RowOnEnter(sel)
     if sel.id == nil then return end
     local ach = AchievementsUtils:GetAchievement(sel.id)
     if ach == nil then return end
-    if not AchievementsUtils:OwnGameTooltip(sel, "ANCHOR_RIGHT") then return end
-    GameTooltip:SetText(ach.name, 1, 1, 1)
-    if ach.description ~= "" then GameTooltip:AddLine(ach.description, 1, 0.82, 0, true) end
-    if ach.reward ~= "" then GameTooltip:AddLine(ach.reward, 0.1, 1, 0.1, true) end
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(AchievementsUtils:Trans("LID_CLICKOPEN"), 0.6, 0.6, 0.6)
-    if AchievementsUtils:CanTrack() then GameTooltip:AddLine(AchievementsUtils:Trans("LID_CTRLCLICKTRACK"), 0.6, 0.6, 0.6) end
+    local tooltip = AchievementsUtils:ShowAddonTooltip(sel, "ANCHOR_RIGHT")
+    if tooltip == nil then return end
+    tooltip:SetText(ach.name, 1, 1, 1)
+    if ach.description ~= "" then tooltip:AddLine(ach.description, 1, 0.82, 0, true) end
+    if ach.reward ~= "" then tooltip:AddLine(ach.reward, 0.1, 1, 0.1, true) end
+    tooltip:AddLine(" ")
+    tooltip:AddLine(AchievementsUtils:Trans("LID_CLICKOPEN"), 0.6, 0.6, 0.6)
+    if AchievementsUtils:CanTrack() then tooltip:AddLine(AchievementsUtils:Trans("LID_CTRLCLICKTRACK"), 0.6, 0.6, 0.6) end
     if AchievementsUtils:IsEnabled("CONTEXTMENU") then
-        GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKMENU"), 0.6, 0.6, 0.6)
+        tooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKMENU"), 0.6, 0.6, 0.6)
     else
-        GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKWATCH"), 0.6, 0.6, 0.6)
+        tooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKWATCH"), 0.6, 0.6, 0.6)
     end
 
-    if AchievementsUtils:IsEnabled("WOWHEAD") then GameTooltip:AddLine(AchievementsUtils:Trans("LID_ALTCLICKWOWHEAD"), 0.6, 0.6, 0.6) end
-    GameTooltip:Show()
+    if AchievementsUtils:IsEnabled("WOWHEAD") then tooltip:AddLine(AchievementsUtils:Trans("LID_ALTCLICKWOWHEAD"), 0.6, 0.6, 0.6) end
+    tooltip:Show()
 end
 
-local function RowOnLeave()
-    AchievementsUtils:HideGameTooltip()
+local function RowOnLeave(sel)
+    AchievementsUtils:HideAddonTooltip(sel)
 end
 
 local function CreateRow(parentFrame, i)

@@ -217,14 +217,15 @@ local function ToggleMenu(anchor)
 end
 
 local function ButtonOnEnter(sel)
-    if not AchievementsUtils:OwnGameTooltip(sel, "ANCHOR_RIGHT") then return end
-    GameTooltip:SetText(AchievementsUtils:Trans(sel.auLabel), 1, 1, 1)
-    GameTooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKHISTORY"), 0.6, 0.6, 0.6)
-    GameTooltip:Show()
+    local tooltip = AchievementsUtils:ShowAddonTooltip(sel, "ANCHOR_RIGHT")
+    if tooltip == nil then return end
+    tooltip:SetText(AchievementsUtils:Trans(sel.auLabel), 1, 1, 1)
+    tooltip:AddLine(AchievementsUtils:Trans("LID_RIGHTCLICKHISTORY"), 0.6, 0.6, 0.6)
+    tooltip:Show()
 end
 
-local function ButtonOnLeave()
-    AchievementsUtils:HideGameTooltip()
+local function ButtonOnLeave(sel)
+    AchievementsUtils:HideAddonTooltip(sel)
 end
 
 local function CreateNavButton(name, texture, label)

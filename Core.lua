@@ -23,7 +23,7 @@ local tooltipShownCallbacks = {}
 local tooltipHiddenCallbacks = {}
 local tooltipOwner = nil
 local tooltipVisible = false
-local tooltipCallbacksNeedReset = false
+local addonTooltip = nil
 local hasAchievementAPI = nil
 local trackingType = nil
 if Enum and Enum.ContentTrackingType then trackingType = Enum.ContentTrackingType.Achievement end
@@ -461,13 +461,24 @@ function AchievementsUtils:HideGameTooltip()
     GameTooltip:Hide()
 end
 
-function AchievementsUtils:OwnGameTooltip(owner, anchor)
-    if type(GameTooltip) ~= "table" then return false end
-    if type(owner) ~= "table" then return false end
-    if AchievementsUtils:HasWidgetSet(GameTooltip) then return false end
-    GameTooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
+function AchievementsUtils:GetAddonTooltip()
+    if addonTooltip == nil then addonTooltip = CreateFrame("GameTooltip", "AchievementsUtilsTooltip", UIParent, "GameTooltipTemplate") end
 
-    return true
+    return addonTooltip
+end
+
+function AchievementsUtils:ShowAddonTooltip(owner, anchor)
+    if type(owner) ~= "table" then return nil end
+    local tooltip = AchievementsUtils:GetAddonTooltip()
+    tooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
+
+    return tooltip
+end
+
+function AchievementsUtils:HideAddonTooltip(owner)
+    if addonTooltip == nil or not addonTooltip:IsShown() then return end
+    if owner ~= nil and addonTooltip:GetOwner() ~= owner then return end
+    addonTooltip:Hide()
 end
 
 function AchievementsUtils:OnGameTooltipShown(callback)
@@ -489,26 +500,10 @@ end
 local tooltipWatcher = CreateFrame("Frame", "AchievementsUtilsTooltipWatcher")
 tooltipWatcher:SetScript("OnUpdate", function()
     if type(GameTooltip) ~= "table" then return end
-    if not GameTooltip:IsShown() then
-        if tooltipVisible or tooltipCallbacksNeedReset then
-            tooltipCallbacksNeedReset = false
-            FireTooltipHidden()
-        end
+    if not GameTooltip:IsShown() or AchievementsUtils:HasWidgetSet(GameTooltip) then
+        if tooltipVisible then FireTooltipHidden() end
 
         return
-    end
-
-    if AchievementsUtils:HasWidgetSet(GameTooltip) then
-        tooltipCallbacksNeedReset = true
-        tooltipVisible = false
-        tooltipOwner = nil
-
-        return
-    end
-
-    if tooltipCallbacksNeedReset then
-        tooltipCallbacksNeedReset = false
-        FireTooltipHidden()
     end
 
     local owner = GameTooltip:GetOwner()

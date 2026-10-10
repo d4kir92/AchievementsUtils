@@ -476,6 +476,7 @@ function AchievementsUtils:ShowDropdown(entries, owner)
 
     local menu = GetMenu(1)
     AchievementsUtils:HideAchievementMenu()
+    AchievementsUtils:HideAddonTooltip()
     AchievementsUtils:HideGameTooltip()
     if not CheckGlobalMouse(menu) then CreateCatcher():Show() end
     ShowMenu(1, entries, owner, true)
@@ -491,6 +492,7 @@ function AchievementsUtils:ShowAchievementMenu(id, owner)
     local entries = BuildEntries(id, owner)
     if entries == nil then return false end
     AchievementsUtils:HideAchievementMenu()
+    AchievementsUtils:HideAddonTooltip()
     AchievementsUtils:HideGameTooltip()
     if not CheckGlobalMouse(GetMenu(1)) then CreateCatcher():Show() end
     ShowMenu(1, entries)
