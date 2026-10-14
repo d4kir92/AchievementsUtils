@@ -1,6 +1,6 @@
 local _, AchievementsUtils = ...
 local ADDON = "AchievementsUtils"
-local ICON = 133176
+local ICON = AchievementsUtils:GetAddonIcon()
 local META_CRITERIA_TYPE = 8
 local WOWHEAD_POPUP = "ACHIEVEMENTSUTILS_WOWHEAD"
 local WOWHEAD_LOCALES = {

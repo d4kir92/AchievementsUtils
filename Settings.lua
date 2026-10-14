@@ -1,5 +1,5 @@
 local _, AchievementsUtils = ...
-local ICON = 133176
+local ICON = AchievementsUtils:GetAddonIcon()
 local DEFAULT_WIDTH = 540
 local DEFAULT_HEIGHT = 560
 local STATUS_INTERVAL = 0.5
@@ -7,11 +7,6 @@ local settings = nil
 local widgets = {}
 local footerStatus = nil
 local resetButton = nil
-local function GetTocVersion()
-    if C_AddOns and C_AddOns.GetAddOnMetadata then return C_AddOns.GetAddOnMetadata("AchievementsUtils", "Version") end
-    if GetAddOnMetadata then return GetAddOnMetadata("AchievementsUtils", "Version") end
-    return "0.0.0"
-end
 
 local function ApplyDefaults()
     local db = AchievementsUtils:GetDB()
@@ -191,7 +186,7 @@ function AchievementsUtils:InitSettings()
         end,
         ["getCollapsed"] = function(key) return GetCollapsed(key) end,
         ["setCollapsed"] = function(key, collapsed) SetCollapsed(key, collapsed) end,
-        ["title"] = format("|T%d:16:16:0:0|t AchievementsUtils v%s", ICON, GetTocVersion())
+        ["title"] = format("|T%d:16:16:0:0|t AchievementsUtils v%s", ICON, AchievementsUtils:GetAddonVersion())
     })
 
     settings:SuspendLayout()
@@ -247,14 +242,14 @@ loader:SetScript("OnEvent", function()
     AchievementsUtilsDB = AchievementsUtilsDB or {}
     AchievementsUtilsPCDB = AchievementsUtilsPCDB or {}
     ApplyDefaults()
-    AchievementsUtils:SetVersion(ICON, GetTocVersion())
-    AchievementsUtils:SetAddonOutput("AchievementsUtils", ICON)
+    AchievementsUtils:SetVersion()
+    AchievementsUtils:SetAddonOutput()
     AchievementsUtils:CreateMinimapButton({
         ["name"] = "AchievementsUtils",
         ["icon"] = ICON,
         ["dbtab"] = AchievementsUtilsDB,
         ["dbkey"] = "SHOWMINIMAPBUTTON",
-        ["vTT"] = {{format("|T%d:16:16:0:0|t AchievementsUtils", ICON), "v" .. GetTocVersion()}, {AchievementsUtils:Trans("LID_LEFTCLICK"), AchievementsUtils:Trans("LID_OPENSETTINGS")}, {AchievementsUtils:Trans("LID_RIGHTCLICK"), AchievementsUtils:Trans("LID_HIDEMINIMAPBUTTON")}},
+        ["vTT"] = {{format("|T%d:16:16:0:0|t AchievementsUtils", ICON), "v" .. AchievementsUtils:GetAddonVersion()}, {AchievementsUtils:Trans("LID_LEFTCLICK"), AchievementsUtils:Trans("LID_OPENSETTINGS")}, {AchievementsUtils:Trans("LID_RIGHTCLICK"), AchievementsUtils:Trans("LID_HIDEMINIMAPBUTTON")}},
         ["funcL"] = function() AchievementsUtils:ToggleSettings() end,
         ["funcR"] = function()
             AchievementsUtils:SV(AchievementsUtilsDB, "SHOWMINIMAPBUTTON", false)
